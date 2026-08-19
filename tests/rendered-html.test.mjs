@@ -38,9 +38,11 @@ test("server-renders the game invite", async () => {
 });
 
 test("keeps the full drawing game flow in source", async () => {
-  const [game, agent, css, packageJson] = await Promise.all([
+  const [game, agent, hybrid, api, css, packageJson] = await Promise.all([
     readFile(new URL("../app/GameDemo.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/mockAgentService.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/hybridGuessEngine.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/guess/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
@@ -56,7 +58,21 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(game, /Nope 😂/);
   assert.match(game, /YES!! 🎉/);
   assert.match(game, /Save Memory/);
-  assert.match(agent, /"Birthday Cake": \["Hamburger 🍔", "Cupcake 🧁", "Birthday Cake 🎂"\]/);
+  assert.match(game, /requestNextGuess/);
+  assert.match(game, /gameDirector/);
+  assert.match(game, /finalMissLines/);
+  assert.match(agent, /category:/);
+  assert.match(agent, /difficulty:/);
+  assert.match(agent, /fallbackGuesses/);
+  assert.match(agent, /aliases:/);
+  assert.ok((agent.match(/word:/g) ?? []).length >= 50);
+  assert.match(hybrid, /fetch\("\/api\/guess"/);
+  assert.match(hybrid, /getFallbackGuess/);
+  assert.match(hybrid, /isCorrectGuess/);
+  assert.match(api, /OPENAI_API_KEY/);
+  assert.match(api, /previousGuesses/);
+  assert.match(api, /input_image/);
+  assert.doesNotMatch(api, /targetWord|Birthday Cake|aliases/);
   assert.match(css, /@keyframes floaty/);
   assert.match(css, /@media \(max-width: 900px\)/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

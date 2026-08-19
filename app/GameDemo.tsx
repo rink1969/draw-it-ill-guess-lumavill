@@ -1,77 +1,174 @@
 "use client";
 
-import { PointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { GameWord, getGuesses, pickWord, wordEmoji } from "./mockAgentService";
+import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { requestHybridGuess } from "./hybridGuessEngine";
+import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
 
 type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY";
-type Mood = "idle" | "thinking" | "happy" | "oops";
+type Mood = "idle" | "thinking" | "happy" | "oops" | "dramatic" | "playful" | "confident";
 type BrushSize = "Small" | "Medium" | "Large";
 
 const brushSizes: Record<BrushSize, number> = { Small: 4, Medium: 9, Large: 16 };
 const colors = ["#25231d", "#e75f54", "#4c8bd8", "#f2c94c", "#6c9f49"];
-const waitingLines = [
+
+const drawingLines = [
   "Hmm... what are you drawing?",
   "I'm watching 👀",
   "This better be something I can recognize...",
   "Tiny brush moves. Big mystery.",
+  "I am pretending to be calm about this.",
+  "That line has main-character energy.",
+];
+
+const thinkingLines = [
+  "Hmm... let me look.",
+  "I think I see something...",
+  "Wait...",
+  "Hold still, drawing. I am inspecting you.",
+  "My detective hat is imaginary, but powerful.",
+];
+
+const wrongLines = [
+  "No? Wow. Betrayed by my own confidence.",
+  "Okay okay, let me look again.",
+  "That was a practice guess. Very professional.",
+  "I meant to be wrong. For suspense.",
+  "Hmm. The drawing is being mysterious.",
+];
+
+const correctLines = [
+  "YES!! I knew it!",
+  "My tiny brain sparkles are unstoppable.",
+  "Aha! I saw it!",
+  "Victory hop incoming!",
+  "I am absolutely adding this to my legend.",
+];
+
+const finalMissLines = [
+  "I did not get it, but I have grown emotionally.",
+  "Your drawing defeated me with style.",
+  "I am putting this in the mystery corner.",
+];
+
+const guessOpeners: Record<Exclude<Mood, "idle" | "thinking" | "happy" | "oops">, string[]> = {
+  playful: ["Wait... is that a {guess}? 👀", "Tiny guess time: {guess}?", "I see shapes. I see destiny. {guess}?"],
+  dramatic: ["My reputation is on the line. {guess}?!", "The room goes silent... {guess}?", "If I am wrong, remember me kindly: {guess}."],
+  confident: ["Easy. That's definitely {guess}.", "I am feeling shiny about this one: {guess}.", "Final-ish answer energy: {guess}."],
+};
+
+const memoryTitles = [
+  "Our First Drawing Game",
+  "The Great Cozy Guess",
+  "Mimi's Suspicious Sketch Case",
+  "A Very Important Art Memory",
+  "The Day the Canvas Spoke",
+];
+
+const memoryLines = [
+  "Today we played Draw & Guess together.",
+  "Mimi stared at the canvas with heroic seriousness.",
+  "A tiny masterpiece appeared, and Mimi had opinions.",
+  "The drawing had charm. The guesses had confidence. Mostly.",
 ];
 
 export default function GameDemo() {
   const [gameState, setGameState] = useState<GameState>("INVITE");
   const [firstRound, setFirstRound] = useState(true);
-  const [word, setWord] = useState<GameWord>("Birthday Cake");
+  const [word, setWord] = useState<GameWordEntry>(wordBank[0]);
   const [drawing, setDrawing] = useState("");
-  const [guessIndex, setGuessIndex] = useState(0);
+  const [attempts, setAttempts] = useState<GuessAttempt[]>([]);
+  const [currentAttempt, setCurrentAttempt] = useState<GuessAttempt | null>(null);
   const [thinking, setThinking] = useState(false);
   const [mood, setMood] = useState<Mood>("idle");
+  const [dialogue, setDialogue] = useState("Hey! Wanna play a drawing game with me?");
   const [saved, setSaved] = useState(false);
-  const guesses = useMemo(() => getGuesses(word), [word]);
+  const [solved, setSolved] = useState(false);
+
+  const requestNextGuess = useCallback(async (canvasImage: string, existingAttempts: GuessAttempt[]) => {
+    const round = existingAttempts.length + 1;
+    setThinking(true);
+    setMood("thinking");
+    setDialogue(randomItem(thinkingLines));
+    setCurrentAttempt(null);
+
+    const minimumThinkTime = delay(850);
+    const attempt = await requestHybridGuess({
+      canvasImage,
+      previousGuesses: existingAttempts.map((item) => item.guess),
+      round,
+      targetWord: word,
+    });
+    await minimumThinkTime;
+
+    const directedAttempt = gameDirector(attempt, word, round, existingAttempts);
+    const nextMood = directedAttempt.isCorrect ? "confident" : randomItem(["playful", "dramatic", "confident"] as const);
+    setCurrentAttempt(directedAttempt);
+    setThinking(false);
+    setMood(nextMood);
+    setDialogue(buildGuessLine(directedAttempt.guess, nextMood));
+  }, [word]);
 
   function beginGame() {
     const nextWord = pickWord(firstRound);
     setFirstRound(false);
     setWord(nextWord);
     setDrawing("");
-    setGuessIndex(0);
+    setAttempts([]);
+    setCurrentAttempt(null);
     setSaved(false);
+    setSolved(false);
     setMood("happy");
+    setDialogue("I picked something good. No peeking at my tiny brain.");
     setGameState("WORD_REVEAL");
   }
 
   function startGuessing(dataUrl: string) {
     setDrawing(dataUrl);
+    setAttempts([]);
+    setCurrentAttempt(null);
+    setSolved(false);
     setGameState("GUESSING");
-    setGuessIndex(0);
-    setThinking(true);
-    setMood("thinking");
-    window.setTimeout(() => {
-      setThinking(false);
-      setMood("idle");
-    }, 1000);
+    void requestNextGuess(dataUrl, []);
   }
 
-  function answerGuess(correct: boolean) {
-    if (correct) {
+  function handleGuessAnswer() {
+    if (!currentAttempt) return;
+    const nextAttempts = [...attempts, currentAttempt];
+    setAttempts(nextAttempts);
+
+    if (currentAttempt.isCorrect) {
+      setSolved(true);
       setMood("happy");
+      setDialogue(randomItem(correctLines));
       window.setTimeout(() => setGameState("RESULT"), 900);
       return;
     }
+
+    if (nextAttempts.length >= 3) {
+      setSolved(false);
+      setMood("oops");
+      setDialogue(randomItem(finalMissLines));
+      window.setTimeout(() => setGameState("RESULT"), 900);
+      return;
+    }
+
     setMood("oops");
-    setThinking(true);
-    window.setTimeout(() => {
-      setGuessIndex((current) => Math.min(current + 1, guesses.length - 1));
-      setThinking(false);
-      setMood("thinking");
-      window.setTimeout(() => setMood("idle"), 450);
-    }, 1000);
+    setDialogue(randomItem(wrongLines));
+    window.setTimeout(() => void requestNextGuess(drawing, nextAttempts), 900);
   }
 
   function playAgain() {
     setGameState("INVITE");
     setMood("idle");
     setSaved(false);
+    setSolved(false);
     setDrawing("");
+    setAttempts([]);
+    setCurrentAttempt(null);
+    setDialogue("Hey! Wanna play a drawing game with me?");
   }
+
+  const displayedAttempts = currentAttempt && gameState === "GUESSING" ? [...attempts, currentAttempt] : attempts;
 
   return (
     <main className="game-shell">
@@ -82,15 +179,32 @@ export default function GameDemo() {
         {gameState === "WORD_REVEAL" && <WordReveal word={word} onStart={() => setGameState("DRAWING")} />}
         {gameState === "DRAWING" && <DrawingScreen word={word} mood={mood} onSubmit={startGuessing} />}
         {gameState === "GUESSING" && (
-          <GuessScreen guess={guesses[guessIndex]} guessIndex={guessIndex} isThinking={thinking} mood={mood} onAnswer={answerGuess} />
+          <GuessScreen
+            attempt={currentAttempt}
+            attempts={displayedAttempts}
+            dialogue={dialogue}
+            isThinking={thinking}
+            mood={mood}
+            onAnswer={handleGuessAnswer}
+          />
         )}
-        {gameState === "RESULT" && <ResultScreen word={word} drawing={drawing} guesses={guesses} onMemory={() => setGameState("MEMORY")} />}
+        {gameState === "RESULT" && (
+          <ResultScreen
+            word={word}
+            drawing={drawing}
+            attempts={attempts}
+            solved={solved}
+            dialogue={dialogue}
+            onMemory={() => setGameState("MEMORY")}
+          />
+        )}
         {gameState === "MEMORY" && (
           <MemoryScreen
             word={word}
             drawing={drawing}
-            guesses={guesses}
+            attempts={attempts}
             saved={saved}
+            solved={solved}
             onSave={() => {
               setSaved(true);
               setMood("happy");
@@ -101,6 +215,26 @@ export default function GameDemo() {
       </section>
     </main>
   );
+}
+
+function gameDirector(attempt: GuessAttempt, word: GameWordEntry, round: number, existingAttempts: GuessAttempt[]): GuessAttempt {
+  if (attempt.isCorrect) return attempt;
+  if (attempt.source === "fallback") return attempt;
+  const alreadyGuessed = existingAttempts.some((item) => item.guess.toLowerCase() === attempt.guess.toLowerCase());
+  if (alreadyGuessed) {
+    return {
+      guess: word.fallbackGuesses.find((guess) => !existingAttempts.some((item) => item.guess.toLowerCase() === guess.toLowerCase())) ?? attempt.guess,
+      confidence: 0.42,
+      source: "director",
+      isCorrect: false,
+    };
+  }
+  const shouldNudgeOnLastRound = round === 3 && Math.random() < 0.28;
+  if (shouldNudgeOnLastRound) {
+    const guess = word.aliases[0] ?? word.word;
+    return { guess, confidence: 0.76, source: "director", isCorrect: true };
+  }
+  return attempt;
 }
 
 function GameChrome({ state }: { state: GameState }) {
@@ -132,25 +266,25 @@ function InviteScreen({ onPlay, mood }: { onPlay: () => void; mood: Mood }) {
   );
 }
 
-function WordReveal({ word, onStart }: { word: GameWord; onStart: () => void }) {
+function WordReveal({ word, onStart }: { word: GameWordEntry; onStart: () => void }) {
   return (
     <div className="center-stack">
       <CompanionAvatar mood="happy" compact />
       <h2>Mimi picked a word for you!</h2>
       <div className="word-card">
         <span>🎨 YOUR WORD</span>
-        <strong>{word} {wordEmoji[word]}</strong>
-        <p>Draw it without writing the word!</p>
+        <strong>{word.word} {word.emoji}</strong>
+        <p>{word.category} · {word.difficulty} · Draw it without writing the word!</p>
       </div>
       <button className="primary-button" type="button" onClick={onStart}>Start Drawing</button>
     </div>
   );
 }
 
-function DrawingScreen({ word, mood, onSubmit }: { word: GameWord; mood: Mood; onSubmit: (dataUrl: string) => void }) {
-  const [line, setLine] = useState(waitingLines[0]);
+function DrawingScreen({ word, mood, onSubmit }: { word: GameWordEntry; mood: Mood; onSubmit: (dataUrl: string) => void }) {
+  const [line, setLine] = useState(drawingLines[0]);
   useEffect(() => {
-    const timer = window.setInterval(() => setLine(waitingLines[Math.floor(Math.random() * waitingLines.length)]), 2800);
+    const timer = window.setInterval(() => setLine(randomItem(drawingLines)), 2800);
     return () => window.clearInterval(timer);
   }, []);
   return (
@@ -164,7 +298,7 @@ function DrawingScreen({ word, mood, onSubmit }: { word: GameWord; mood: Mood; o
   );
 }
 
-function DrawingCanvas({ word, onSubmit }: { word: GameWord; onSubmit: (dataUrl: string) => void }) {
+function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dataUrl: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const snapshots = useRef<string[]>([]);
   const isDrawing = useRef(false);
@@ -267,7 +401,7 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWord; onSubmit: (dataUrl:
   return (
     <section className="canvas-card">
       <div className="canvas-topline">
-        <h2>Draw: {word} {wordEmoji[word]}</h2>
+        <h2>Draw: {word.word} {word.emoji}</h2>
         <div className="tool-row compact-tools">
           <button type="button" onClick={undo} title="Undo">↶</button>
           <button type="button" onClick={clear} title="Clear">⌫</button>
@@ -276,7 +410,7 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWord; onSubmit: (dataUrl:
       <canvas
         ref={canvasRef}
         className="drawing-canvas"
-        aria-label={`Drawing canvas for ${word}`}
+        aria-label={`Drawing canvas for ${word.word}`}
         onPointerDown={startDrawing}
         onPointerMove={draw}
         onPointerUp={stopDrawing}
@@ -321,22 +455,21 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWord; onSubmit: (dataUrl:
   );
 }
 
-function GuessScreen({ guess, guessIndex, isThinking, mood, onAnswer }: { guess: string; guessIndex: number; isThinking: boolean; mood: Mood; onAnswer: (correct: boolean) => void }) {
-  const correctRound = guessIndex === 2;
-  const lead = isThinking ? (guessIndex === 0 ? "Let me look..." : "Wait wait... let me look again.") : correctRound ? "Okay, I think I got it!" : "Hmm...";
+function GuessScreen({ attempt, attempts, dialogue, isThinking, mood, onAnswer }: { attempt: GuessAttempt | null; attempts: GuessAttempt[]; dialogue: string; isThinking: boolean; mood: Mood; onAnswer: () => void }) {
+  const round = Math.max(1, attempts.length);
   return (
     <div className="guess-layout">
       <CompanionAvatar mood={mood} />
       <div className="guess-card">
-        <CompanionDialogue lines={[lead]} />
-        {isThinking ? (
+        <CompanionDialogue lines={[dialogue]} />
+        {isThinking || !attempt ? (
           <div className="thinking-dots" aria-label="Mimi is thinking"><i /><i /><i /></div>
         ) : (
           <>
-            <h2>Is it... {guess}?</h2>
+            <p className="round-label">Round {round} · confidence {Math.round(attempt.confidence * 100)}%</p>
+            <h2>{attempt.guess}?</h2>
             <div className="guess-actions">
-              <button className="primary-button" type="button" onClick={() => onAnswer(correctRound)}>{correctRound ? "YES!! 🎉" : "Yes!"}</button>
-              {!correctRound && <button className="secondary-button" type="button" onClick={() => onAnswer(false)}>Nope 😂</button>}
+              <button className="primary-button" type="button" onClick={onAnswer}>{attempt.isCorrect ? "YES!! 🎉" : attempts.length >= 3 ? "Nice try, Mimi" : "Nope 😂"}</button>
             </div>
           </>
         )}
@@ -345,28 +478,28 @@ function GuessScreen({ guess, guessIndex, isThinking, mood, onAnswer }: { guess:
   );
 }
 
-function ResultScreen({ word, drawing, guesses, onMemory }: { word: GameWord; drawing: string; guesses: string[]; onMemory: () => void }) {
+function ResultScreen({ word, drawing, attempts, solved, dialogue, onMemory }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean; dialogue: string; onMemory: () => void }) {
   useEffect(() => {
-    const timer = window.setTimeout(onMemory, 2300);
+    const timer = window.setTimeout(onMemory, 2400);
     return () => window.clearTimeout(timer);
   }, [onMemory]);
   return (
     <div className="result-layout">
       <div className="result-art">
-        <span className="burst">🎉</span>
-        <h2>Mimi guessed it!</h2>
+        <span className="burst">{solved ? "🎉" : "✨"}</span>
+        <h2>{solved ? "Mimi guessed it!" : "Mimi gave it her best shot!"}</h2>
         <img src={drawing} alt="Your drawing" />
       </div>
       <div className="result-details">
-        <strong>{word} {wordEmoji[word]}</strong>
-        <ol>{guesses.map((guess, index) => <li key={guess}>{guess} {index === guesses.length - 1 ? "✅" : "❌"}</li>)}</ol>
-        <CompanionDialogue lines={["YES!! I knew it!", "Your drawing is... surprisingly understandable 😂"]} />
+        <strong>{word.word} {word.emoji}</strong>
+        <GuessList attempts={attempts} />
+        <CompanionDialogue lines={[dialogue, solved ? randomItem(correctLines) : "I'm keeping this mystery for training my vibes."]} />
       </div>
     </div>
   );
 }
 
-function MemoryScreen({ word, drawing, guesses, saved, onSave, onPlayAgain }: { word: GameWord; drawing: string; guesses: string[]; saved: boolean; onSave: () => void; onPlayAgain: () => void }) {
+function MemoryScreen({ word, drawing, attempts, saved, solved, onSave, onPlayAgain }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; saved: boolean; solved: boolean; onSave: () => void; onPlayAgain: () => void }) {
   return (
     <div className="memory-layout">
       <div className="memory-heading">
@@ -374,8 +507,8 @@ function MemoryScreen({ word, drawing, guesses, saved, onSave, onPlayAgain }: { 
         <h2>Game Complete!</h2>
         <p>You made a new memory with Mimi.</p>
       </div>
-      <MemoryCard word={word} drawing={drawing} guesses={guesses} />
-      <CompanionDialogue lines={[saved ? "I'm definitely remembering this one." : "I'm keeping this.", "This might be the weirdest cake anyone has ever drawn for me. 😂"]} />
+      <MemoryCard word={word} drawing={drawing} attempts={attempts} solved={solved} />
+      <CompanionDialogue lines={[saved ? "I'm definitely remembering this one." : "I'm keeping this.", solved ? randomItem(memoryLines) : "Unsolved mysteries are memories too. Very fancy."]} />
       <div className="ending-actions">
         <button className="primary-button" type="button" onClick={onSave}>{saved ? "Saved ✓" : "Save Memory"}</button>
         <button className="secondary-button" type="button" onClick={onPlayAgain}>Play Again</button>
@@ -385,20 +518,33 @@ function MemoryScreen({ word, drawing, guesses, saved, onSave, onPlayAgain }: { 
   );
 }
 
-function MemoryCard({ word, drawing, guesses }: { word: GameWord; drawing: string; guesses: string[] }) {
+function MemoryCard({ word, drawing, attempts, solved }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean }) {
+  const title = useMemo(() => randomItem(memoryTitles), []);
+  const line = useMemo(() => randomItem(memoryLines), []);
   return (
     <article className="memory-card">
       <img src={drawing} alt="Saved drawing thumbnail" />
       <div>
-        <h3>Our First Drawing Game</h3>
-        <p>Today we played Draw & Guess together.</p>
-        <p>You drew: <b>{wordEmoji[word]} {word}</b></p>
+        <h3>{title}</h3>
+        <p>{line}</p>
+        <p>You drew: <b>{word.emoji} {word.word}</b></p>
         <p>Mimi guessed:</p>
-        <ul>{guesses.map((guess) => <li key={guess}>{guess}</li>)}</ul>
-        <strong>Mimi got it on the 3rd try.</strong>
+        <ul>{attempts.map((attempt, index) => <li key={`${attempt.guess}-${index}`}>{attempt.guess} {attempt.isCorrect ? "✅" : "❌"}</li>)}</ul>
+        <strong>{solved ? `Mimi got it on try ${attempts.length}.` : "Mimi did not crack the case this time."}</strong>
         <time>Today</time>
       </div>
     </article>
+  );
+}
+
+function GuessList({ attempts }: { attempts: GuessAttempt[] }) {
+  if (attempts.length === 0) return null;
+  return (
+    <ol>
+      {attempts.map((attempt, index) => (
+        <li key={`${attempt.guess}-${index}`}>{attempt.guess} {attempt.isCorrect ? "✅" : "❌"}</li>
+      ))}
+    </ol>
   );
 }
 
@@ -413,4 +559,17 @@ function CompanionAvatar({ mood, compact = false }: { mood: Mood; compact?: bool
 
 function CompanionDialogue({ lines }: { lines: string[] }) {
   return <div className="dialogue">{lines.map((line) => <p key={line}>{line}</p>)}</div>;
+}
+
+function buildGuessLine(guess: string, mood: Mood) {
+  if (mood !== "playful" && mood !== "dramatic" && mood !== "confident") return `Is it... ${guess}?`;
+  return randomItem(guessOpeners[mood]).replace("{guess}", guess);
+}
+
+function randomItem<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
