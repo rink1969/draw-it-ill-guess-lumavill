@@ -56,7 +56,10 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(game, /toDataURL\("image\/png"\)/);
   assert.match(game, /Let Mimi Guess!/);
   assert.match(game, /Nope 😂/);
-  assert.match(game, /YES!! 🎉/);
+  assert.match(game, /Yes! 🎉/);
+  assert.match(game, /playerSaysCorrect/);
+  assert.match(game, /thinking-preview/);
+  assert.match(game, /scan-line/);
   assert.match(game, /Save Memory/);
   assert.match(game, /requestNextGuess/);
   assert.match(game, /gameDirector/);

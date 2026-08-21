@@ -88,7 +88,7 @@ export const wordBank: GameWordEntry[] = [
 const recentWordsKey = "lumavill-recent-words";
 
 export function pickWord(isFirstRound: boolean): GameWordEntry {
-  if (isFirstRound) {
+  if (isFirstRound && shouldUseFirstRoundDemoWord()) {
     rememberWord(wordBank[0].word);
     return wordBank[0];
   }
@@ -100,11 +100,34 @@ export function pickWord(isFirstRound: boolean): GameWordEntry {
   return picked;
 }
 
-export function getFallbackGuess(word: GameWordEntry, previousGuesses: string[], round: number): string {
+export function getFallbackGuess(word: GameWordEntry, previousGuesses: string[], round: number, userHints: string[] = []): string {
   const previous = previousGuesses.map(normalizeGuess);
-  const choices = word.fallbackGuesses.filter((guess) => !previous.includes(normalizeGuess(guess)));
-  if (choices.length > 0) return choices[Math.min(round - 1, choices.length - 1)];
-  return word.fallbackGuesses[word.fallbackGuesses.length - 1];
+  const normalizedHints = userHints.map(normalizeGuess).join(" ");
+  const hintNamesAnswer = [word.word, ...word.aliases].some((alias) => normalizedHints.includes(normalizeGuess(alias)));
+  if (hintNamesAnswer && !previous.includes(normalizeGuess(word.word))) return word.word;
+
+  const sameCategoryWords = wordBank
+    .filter((entry) => entry.category === word.category && entry.word !== word.word)
+    .map((entry) => entry.word);
+  const neighboringConfusions = wordBank
+    .filter((entry) => entry.category !== word.category && entry.difficulty === word.difficulty)
+    .flatMap((entry) => entry.fallbackGuesses.slice(0, 2));
+
+  const hintAlignment = hintMatchesTarget(word, normalizedHints) ? 0.22 : 0;
+  const hintBoost = userHints.length ? Math.min(0.68, userHints.length * 0.28 + hintAlignment) : 0;
+  const answerChance =
+    round === 1 ? 0.08 + hintBoost : round === 2 ? 0.2 + hintBoost : userHints.length ? 0.62 + hintBoost : 0.38;
+  const shouldTryAnswer = Math.random() < Math.min(0.96, answerChance);
+
+  const candidates = shouldTryAnswer
+    ? [word.word, ...word.aliases, ...word.fallbackGuesses, ...sameCategoryWords]
+    : [...word.fallbackGuesses.slice(0, 2), ...sameCategoryWords, ...neighboringConfusions];
+
+  const fresh = (shouldTryAnswer ? unique(candidates) : shuffle(unique(candidates)))
+    .filter((guess) => !previous.includes(normalizeGuess(guess)))
+    .filter((guess) => round >= 3 || normalizeGuess(guess) !== normalizeGuess(word.word));
+
+  return fresh[0] ?? word.fallbackGuesses.find((guess) => !previous.includes(normalizeGuess(guess))) ?? word.word;
 }
 
 export function isCorrectGuess(guess: string, target: GameWordEntry): boolean {
@@ -138,4 +161,36 @@ function rememberWord(word: string) {
   if (typeof window === "undefined") return;
   const next = [word, ...readRecentWords().filter((item) => item !== word)].slice(0, 12);
   window.localStorage.setItem(recentWordsKey, JSON.stringify(next));
+}
+
+function shouldUseFirstRoundDemoWord() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("demoWord") === "birthday";
+}
+
+function hintMatchesTarget(word: GameWordEntry, normalizedHints: string) {
+  if (!normalizedHints) return false;
+  const categoryHints: Record<Category, string[]> = {
+    Food: ["sweet", "eat", "food", "drink", "snack", "dessert", "tasty", "hot", "cold", "sugar", "吃", "喝", "甜", "食物", "饮料", "好吃"],
+    Animals: ["animal", "pet", "tail", "fur", "wing", "water", "legs", "cute", "动物", "宠物", "尾巴", "翅膀", "水里", "可爱"],
+    Nature: ["nature", "outside", "plant", "sky", "weather", "green", "自然", "户外", "植物", "天空", "绿色"],
+    Objects: ["object", "tool", "use", "hold", "thing", "machine", "物品", "工具", "拿", "用", "机器"],
+    Places: ["place", "building", "go", "live", "home", "地方", "建筑", "去", "住", "家"],
+    Sports: ["sport", "ball", "play", "game", "运动", "球", "比赛", "玩"],
+    Magic: ["magic", "fantasy", "sparkle", "fire", "story", "魔法", "幻想", "发光", "火", "故事"],
+  };
+  return categoryHints[word.category].some((hint) => normalizedHints.includes(normalizeGuess(hint)));
+}
+
+function unique(items: string[]) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function shuffle<T>(items: T[]) {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  return next;
 }

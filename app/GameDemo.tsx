@@ -1,12 +1,17 @@
 "use client";
 
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DrawingStroke, StructuredDrawing, strokesToStructuredDrawing } from "./drawingCodec";
 import { requestHybridGuess } from "./hybridGuessEngine";
 import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
 
 type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY";
 type Mood = "idle" | "thinking" | "happy" | "oops" | "dramatic" | "playful" | "confident";
 type BrushSize = "Small" | "Medium" | "Large";
+type DrawingSubmission = {
+  image: string;
+  structured: StructuredDrawing;
+};
 
 const brushSizes: Record<BrushSize, number> = { Small: 4, Medium: 9, Large: 16 };
 const colors = ["#25231d", "#e75f54", "#4c8bd8", "#f2c94c", "#6c9f49"];
@@ -26,6 +31,16 @@ const thinkingLines = [
   "Wait...",
   "Hold still, drawing. I am inspecting you.",
   "My detective hat is imaginary, but powerful.",
+  "I am squinting with maximum seriousness.",
+  "There are clues in these lines. I can feel it.",
+];
+
+const clueThinkingLines = [
+  "Okay, I am comparing your hint with the drawing.",
+  "The clue is changing my theory...",
+  "I am matching the hint to the outline now.",
+  "Tiny detective mode: clue plus drawing, clue plus drawing.",
+  "Wait, that hint makes one part of the drawing make sense.",
 ];
 
 const wrongLines = [
@@ -50,11 +65,58 @@ const finalMissLines = [
   "I am putting this in the mystery corner.",
 ];
 
+const hintRequestLines = [
+  "Okay, I need a tiny clue. Just one hint, please.",
+  "My detective brain needs a snack-sized hint.",
+  "Give me one clue and I will try again with dignity.",
+  "I am stuck, but not defeated. Whisper a hint?",
+];
+
 const guessOpeners: Record<Exclude<Mood, "idle" | "thinking" | "happy" | "oops">, string[]> = {
-  playful: ["Wait... is that a {guess}? 👀", "Tiny guess time: {guess}?", "I see shapes. I see destiny. {guess}?"],
-  dramatic: ["My reputation is on the line. {guess}?!", "The room goes silent... {guess}?", "If I am wrong, remember me kindly: {guess}."],
-  confident: ["Easy. That's definitely {guess}.", "I am feeling shiny about this one: {guess}.", "Final-ish answer energy: {guess}."],
+  playful: [
+    "Wait... is that a {guess}? 👀",
+    "Tiny guess time: {guess}?",
+    "I see shapes. I see destiny. {guess}?",
+    "This line over here is whispering {guess} to me.",
+    "Okay, bold guess: {guess}.",
+  ],
+  dramatic: [
+    "My reputation is on the line. {guess}?!",
+    "The room goes silent... {guess}?",
+    "If I am wrong, remember me kindly: {guess}.",
+    "I have examined the evidence and accuse: {guess}.",
+    "A hush falls over LumaVill. Is it {guess}?",
+  ],
+  confident: [
+    "Easy. That's definitely {guess}.",
+    "I am feeling shiny about this one: {guess}.",
+    "Final-ish answer energy: {guess}.",
+    "My official little answer is {guess}.",
+    "I have a suspicious amount of confidence: {guess}.",
+  ],
 };
+
+const uncertainGuessOpeners = [
+  "I might be wildly wrong, but... {guess}?",
+  "This is a soft guess. Very soft. {guess}?",
+  "I am only {confidence}% sure, so be gentle: {guess}?",
+  "The drawing is giving me {guess} energy.",
+];
+
+const retryGuessOpeners = [
+  "Second look! Now I think it might be {guess}.",
+  "I changed my tiny mind. {guess}?",
+  "Okay, new theory: {guess}.",
+  "The clues have rearranged themselves into {guess}.",
+];
+
+const clueRoundGuessOpeners = [
+  "With the new clue, I am thinking {guess}.",
+  "The hint points my tiny compass toward {guess}.",
+  "Fresh clue, fresh courage: {guess}?",
+  "Okay, clue-powered guess: {guess}.",
+  "I have upgraded my theory to {guess}.",
+];
 
 const memoryTitles = [
   "Our First Drawing Game",
@@ -71,30 +133,53 @@ const memoryLines = [
   "The drawing had charm. The guesses had confidence. Mostly.",
 ];
 
+const wordRevealLines = [
+  "I picked something good. No peeking at my tiny brain.",
+  "This one has excellent doodle potential.",
+  "I believe in your drawing hand. Mostly.",
+  "Make it mysterious, but not too mysterious.",
+  "I will be watching with extremely serious eyes.",
+];
+
 export default function GameDemo() {
   const [gameState, setGameState] = useState<GameState>("INVITE");
   const [firstRound, setFirstRound] = useState(true);
   const [word, setWord] = useState<GameWordEntry>(wordBank[0]);
   const [drawing, setDrawing] = useState("");
+  const [structuredDrawing, setStructuredDrawing] = useState<StructuredDrawing | null>(null);
   const [attempts, setAttempts] = useState<GuessAttempt[]>([]);
   const [currentAttempt, setCurrentAttempt] = useState<GuessAttempt | null>(null);
   const [thinking, setThinking] = useState(false);
+  const [hintThinking, setHintThinking] = useState(false);
+  const [thinkingLineIndex, setThinkingLineIndex] = useState(0);
   const [mood, setMood] = useState<Mood>("idle");
   const [dialogue, setDialogue] = useState("Hey! Wanna play a drawing game with me?");
+  const [userHints, setUserHints] = useState<string[]>([]);
+  const [hintInput, setHintInput] = useState("");
   const [saved, setSaved] = useState(false);
   const [solved, setSolved] = useState(false);
 
-  const requestNextGuess = useCallback(async (canvasImage: string, existingAttempts: GuessAttempt[]) => {
+  const requestNextGuess = useCallback((
+    async (
+      canvasImage: string,
+      existingAttempts: GuessAttempt[],
+      hintsForGuess = userHints,
+      structuredForGuess = structuredDrawing,
+    ) => {
     const round = existingAttempts.length + 1;
+    const hasHint = hintsForGuess.length > 0;
     setThinking(true);
+    setHintThinking(hasHint);
+    setThinkingLineIndex(Math.floor(Math.random() * (hasHint ? clueThinkingLines.length : thinkingLines.length)));
     setMood("thinking");
-    setDialogue(randomItem(thinkingLines));
     setCurrentAttempt(null);
 
-    const minimumThinkTime = delay(850);
+    const minimumThinkTime = delay(hasHint ? 2450 : 1550);
     const attempt = await requestHybridGuess({
       canvasImage,
+      structuredDrawing: structuredForGuess,
       previousGuesses: existingAttempts.map((item) => item.guess),
+      userHints: hintsForGuess,
       round,
       targetWord: word,
     });
@@ -104,39 +189,61 @@ export default function GameDemo() {
     const nextMood = directedAttempt.isCorrect ? "confident" : randomItem(["playful", "dramatic", "confident"] as const);
     setCurrentAttempt(directedAttempt);
     setThinking(false);
+    setHintThinking(false);
     setMood(nextMood);
-    setDialogue(buildGuessLine(directedAttempt.guess, nextMood));
-  }, [word]);
+    setDialogue(buildGuessLine(directedAttempt, nextMood, round));
+  }), [structuredDrawing, userHints, word]);
+
+  useEffect(() => {
+    if (!thinking) return;
+    const lines = hintThinking ? clueThinkingLines : thinkingLines;
+    setDialogue(lines[thinkingLineIndex]);
+    const timer = window.setInterval(() => {
+      setThinkingLineIndex((index) => {
+        const next = (index + 1) % lines.length;
+        setDialogue(lines[next]);
+        return next;
+      });
+    }, 620);
+    return () => window.clearInterval(timer);
+  }, [hintThinking, thinking, thinkingLineIndex]);
 
   function beginGame() {
     const nextWord = pickWord(firstRound);
     setFirstRound(false);
     setWord(nextWord);
     setDrawing("");
+    setStructuredDrawing(null);
     setAttempts([]);
+    setUserHints([]);
+    setHintInput("");
     setCurrentAttempt(null);
     setSaved(false);
     setSolved(false);
     setMood("happy");
-    setDialogue("I picked something good. No peeking at my tiny brain.");
+    setDialogue(randomItem(wordRevealLines));
     setGameState("WORD_REVEAL");
   }
 
-  function startGuessing(dataUrl: string) {
-    setDrawing(dataUrl);
+  function startGuessing(submission: DrawingSubmission) {
+    setDrawing(submission.image);
+    setStructuredDrawing(submission.structured);
     setAttempts([]);
     setCurrentAttempt(null);
+    setUserHints([]);
+    setHintInput("");
     setSolved(false);
     setGameState("GUESSING");
-    void requestNextGuess(dataUrl, []);
+    void requestNextGuess(submission.image, [], [], submission.structured);
   }
 
-  function handleGuessAnswer() {
+  function handleGuessAnswer(playerSaysCorrect: boolean) {
     if (!currentAttempt) return;
-    const nextAttempts = [...attempts, currentAttempt];
+    const confirmedAttempt = { ...currentAttempt, isCorrect: playerSaysCorrect };
+    const nextAttempts = [...attempts, confirmedAttempt];
     setAttempts(nextAttempts);
 
-    if (currentAttempt.isCorrect) {
+    if (playerSaysCorrect) {
       setSolved(true);
       setMood("happy");
       setDialogue(randomItem(correctLines));
@@ -145,10 +252,9 @@ export default function GameDemo() {
     }
 
     if (nextAttempts.length >= 3) {
-      setSolved(false);
       setMood("oops");
-      setDialogue(randomItem(finalMissLines));
-      window.setTimeout(() => setGameState("RESULT"), 900);
+      setCurrentAttempt(null);
+      setDialogue(randomItem(hintRequestLines));
       return;
     }
 
@@ -163,12 +269,26 @@ export default function GameDemo() {
     setSaved(false);
     setSolved(false);
     setDrawing("");
+    setStructuredDrawing(null);
     setAttempts([]);
+    setUserHints([]);
+    setHintInput("");
     setCurrentAttempt(null);
     setDialogue("Hey! Wanna play a drawing game with me?");
   }
 
   const displayedAttempts = currentAttempt && gameState === "GUESSING" ? [...attempts, currentAttempt] : attempts;
+  const needsHint = gameState === "GUESSING" && !thinking && !currentAttempt && attempts.length >= 3;
+
+  function submitHint() {
+    const hint = hintInput.trim();
+    if (!hint || thinking) return;
+    const nextHints = [...userHints, hint].slice(-6);
+    setUserHints(nextHints);
+    setHintInput("");
+    setDialogue("Ooh. That clue changed the whole investigation.");
+    window.setTimeout(() => void requestNextGuess(drawing, attempts, nextHints), 250);
+  }
 
   return (
     <main className="game-shell">
@@ -176,16 +296,23 @@ export default function GameDemo() {
       <GameChrome state={gameState} />
       <section className={`stage state-${gameState.toLowerCase()}`}>
         {gameState === "INVITE" && <InviteScreen onPlay={beginGame} mood={mood} />}
-        {gameState === "WORD_REVEAL" && <WordReveal word={word} onStart={() => setGameState("DRAWING")} />}
+        {gameState === "WORD_REVEAL" && <WordReveal word={word} dialogue={dialogue} onStart={() => setGameState("DRAWING")} />}
         {gameState === "DRAWING" && <DrawingScreen word={word} mood={mood} onSubmit={startGuessing} />}
         {gameState === "GUESSING" && (
           <GuessScreen
             attempt={currentAttempt}
             attempts={displayedAttempts}
             dialogue={dialogue}
+            drawing={drawing}
+            hintInput={hintInput}
             isThinking={thinking}
+            isUsingHint={hintThinking}
             mood={mood}
+            needsHint={needsHint}
             onAnswer={handleGuessAnswer}
+            onHintInput={setHintInput}
+            onSubmitHint={submitHint}
+            userHints={userHints}
           />
         )}
         {gameState === "RESULT" && (
@@ -266,11 +393,12 @@ function InviteScreen({ onPlay, mood }: { onPlay: () => void; mood: Mood }) {
   );
 }
 
-function WordReveal({ word, onStart }: { word: GameWordEntry; onStart: () => void }) {
+function WordReveal({ word, dialogue, onStart }: { word: GameWordEntry; dialogue: string; onStart: () => void }) {
   return (
     <div className="center-stack">
       <CompanionAvatar mood="happy" compact />
       <h2>Mimi picked a word for you!</h2>
+      <CompanionDialogue lines={[dialogue]} />
       <div className="word-card">
         <span>🎨 YOUR WORD</span>
         <strong>{word.word} {word.emoji}</strong>
@@ -281,7 +409,7 @@ function WordReveal({ word, onStart }: { word: GameWordEntry; onStart: () => voi
   );
 }
 
-function DrawingScreen({ word, mood, onSubmit }: { word: GameWordEntry; mood: Mood; onSubmit: (dataUrl: string) => void }) {
+function DrawingScreen({ word, mood, onSubmit }: { word: GameWordEntry; mood: Mood; onSubmit: (submission: DrawingSubmission) => void }) {
   const [line, setLine] = useState(drawingLines[0]);
   useEffect(() => {
     const timer = window.setInterval(() => setLine(randomItem(drawingLines)), 2800);
@@ -298,11 +426,14 @@ function DrawingScreen({ word, mood, onSubmit }: { word: GameWordEntry; mood: Mo
   );
 }
 
-function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dataUrl: string) => void }) {
+function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (submission: DrawingSubmission) => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const snapshots = useRef<string[]>([]);
+  const strokeSnapshots = useRef<DrawingStroke[][]>([]);
+  const strokes = useRef<DrawingStroke[]>([]);
+  const currentStroke = useRef<DrawingStroke | null>(null);
   const isDrawing = useRef(false);
-  const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  const lastPoint = useRef<{ x: number; y: number; normalizedX: number; normalizedY: number } | null>(null);
   const [color, setColor] = useState(colors[0]);
   const [size, setSize] = useState<BrushSize>("Medium");
   const [eraser, setEraser] = useState(false);
@@ -323,11 +454,19 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     snapshots.current = [canvas.toDataURL()];
+    strokeSnapshots.current = [[]];
   }, []);
 
   function canvasPoint(event: PointerEvent<HTMLCanvasElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    return {
+      x,
+      y,
+      normalizedX: (x / rect.width) * 1000,
+      normalizedY: (y / rect.height) * 700,
+    };
   }
 
   function startDrawing(event: PointerEvent<HTMLCanvasElement>) {
@@ -336,6 +475,12 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
     event.currentTarget.setPointerCapture(event.pointerId);
     isDrawing.current = true;
     lastPoint.current = canvasPoint(event);
+    currentStroke.current = {
+      points: [[lastPoint.current.normalizedX, lastPoint.current.normalizedY]],
+      color,
+      width: brushSizes[size],
+      tool: eraser ? "eraser" : "brush",
+    };
     const ctx = canvas.getContext("2d");
     if (!ctx || !lastPoint.current) return;
     ctx.beginPath();
@@ -350,6 +495,7 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const point = canvasPoint(event);
+    currentStroke.current?.points.push([point.normalizedX, point.normalizedY]);
     ctx.strokeStyle = eraser ? "#fffdf7" : color;
     ctx.lineWidth = brushSizes[size];
     ctx.beginPath();
@@ -363,7 +509,12 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
     const canvas = canvasRef.current;
     if (!isDrawing.current || !canvas) return;
     isDrawing.current = false;
+    if (currentStroke.current) {
+      strokes.current = [...strokes.current, currentStroke.current];
+      currentStroke.current = null;
+    }
     snapshots.current.push(canvas.toDataURL());
+    strokeSnapshots.current.push(strokes.current.map((stroke) => ({ ...stroke, points: [...stroke.points] })));
   }
 
   function restore(dataUrl: string) {
@@ -381,6 +532,8 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
   function undo() {
     if (snapshots.current.length <= 1) return;
     snapshots.current.pop();
+    strokeSnapshots.current.pop();
+    strokes.current = (strokeSnapshots.current[strokeSnapshots.current.length - 1] ?? []).map((stroke) => ({ ...stroke, points: [...stroke.points] }));
     restore(snapshots.current[snapshots.current.length - 1]);
     setHasDrawing(snapshots.current.length > 1);
   }
@@ -395,6 +548,9 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
     ctx.fillStyle = "#fffdf7";
     ctx.fillRect(0, 0, width, height);
     snapshots.current = [canvas.toDataURL()];
+    strokes.current = [];
+    currentStroke.current = null;
+    strokeSnapshots.current = [[]];
     setHasDrawing(false);
   }
 
@@ -446,7 +602,12 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
         type="button"
         onClick={() => {
           const canvas = canvasRef.current;
-          if (canvas) onSubmit(canvas.toDataURL("image/png"));
+          if (canvas) {
+            onSubmit({
+              image: canvas.toDataURL("image/png"),
+              structured: strokesToStructuredDrawing(strokes.current),
+            });
+          }
         }}
       >
         Let Mimi Guess!
@@ -455,21 +616,84 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (dat
   );
 }
 
-function GuessScreen({ attempt, attempts, dialogue, isThinking, mood, onAnswer }: { attempt: GuessAttempt | null; attempts: GuessAttempt[]; dialogue: string; isThinking: boolean; mood: Mood; onAnswer: () => void }) {
+function GuessScreen({
+  attempt,
+  attempts,
+  dialogue,
+  drawing,
+  hintInput,
+  isThinking,
+  isUsingHint,
+  mood,
+  needsHint,
+  onAnswer,
+  onHintInput,
+  onSubmitHint,
+  userHints,
+}: {
+  attempt: GuessAttempt | null;
+  attempts: GuessAttempt[];
+  dialogue: string;
+  drawing: string;
+  hintInput: string;
+  isThinking: boolean;
+  isUsingHint: boolean;
+  mood: Mood;
+  needsHint: boolean;
+  onAnswer: (playerSaysCorrect: boolean) => void;
+  onHintInput: (value: string) => void;
+  onSubmitHint: () => void;
+  userHints: string[];
+}) {
   const round = Math.max(1, attempts.length);
   return (
     <div className="guess-layout">
       <CompanionAvatar mood={mood} />
       <div className="guess-card">
         <CompanionDialogue lines={[dialogue]} />
-        {isThinking || !attempt ? (
-          <div className="thinking-dots" aria-label="Mimi is thinking"><i /><i /><i /></div>
+        <div className={isThinking ? "guess-preview thinking-preview" : "guess-preview"}>
+          <img src={drawing} alt="Mimi looking at your drawing" />
+          {isThinking && <span className="scan-line" aria-hidden="true" />}
+        </div>
+        {needsHint ? (
+          <div className="hint-panel">
+            <p>Mimi has missed three times. Give her a small text hint, then she will keep guessing.</p>
+            {userHints.length > 0 && (
+              <div className="hint-history" aria-label="Hints already given">
+                {userHints.map((hint, index) => <span key={`${hint}-${index}`}>{hint}</span>)}
+              </div>
+            )}
+            <form
+              className="hint-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onSubmitHint();
+              }}
+            >
+              <input
+                aria-label="Give Mimi a hint"
+                maxLength={80}
+                onChange={(event) => onHintInput(event.target.value)}
+                placeholder="e.g. It is sweet / It lives in water"
+                value={hintInput}
+              />
+              <button className="primary-button" disabled={!hintInput.trim()} type="submit">Give Hint</button>
+            </form>
+          </div>
+        ) : isThinking || !attempt ? (
+          <div className="thinking-block">
+            <div className="thinking-dots" aria-label="Mimi is thinking"><i /><i /><i /></div>
+            <p>{isUsingHint ? "Mimi is using your hint and checking the drawing again." : "Mimi is looking closely. She'll guess in a moment."}</p>
+            {isUsingHint && userHints.length > 0 && <span className="active-hint">Current clue: {userHints[userHints.length - 1]}</span>}
+          </div>
         ) : (
           <>
             <p className="round-label">Round {round} · confidence {Math.round(attempt.confidence * 100)}%</p>
             <h2>{attempt.guess}?</h2>
+            <p className="guess-note">{guessNote(attempt, userHints.length > 0)}</p>
             <div className="guess-actions">
-              <button className="primary-button" type="button" onClick={onAnswer}>{attempt.isCorrect ? "YES!! 🎉" : attempts.length >= 3 ? "Nice try, Mimi" : "Nope 😂"}</button>
+              <button className="primary-button" type="button" onClick={() => onAnswer(true)}>Yes! 🎉</button>
+              <button className="secondary-button" type="button" onClick={() => onAnswer(false)}>{attempts.length >= 3 ? "Still nope 😂" : "Nope 😂"}</button>
             </div>
           </>
         )}
@@ -561,9 +785,25 @@ function CompanionDialogue({ lines }: { lines: string[] }) {
   return <div className="dialogue">{lines.map((line) => <p key={line}>{line}</p>)}</div>;
 }
 
-function buildGuessLine(guess: string, mood: Mood) {
+function buildGuessLine(attempt: GuessAttempt, mood: Mood, round: number) {
+  const guess = attempt.guess;
+  if (round >= 3) return fillGuessLine(randomItem(clueRoundGuessOpeners), attempt);
+  if (round === 2) return fillGuessLine(randomItem(retryGuessOpeners), attempt);
+  if (attempt.confidence < 0.48) return fillGuessLine(randomItem(uncertainGuessOpeners), attempt);
   if (mood !== "playful" && mood !== "dramatic" && mood !== "confident") return `Is it... ${guess}?`;
-  return randomItem(guessOpeners[mood]).replace("{guess}", guess);
+  return fillGuessLine(randomItem(guessOpeners[mood]), attempt);
+}
+
+function guessNote(attempt: GuessAttempt, hasHint: boolean) {
+  if (hasHint) return "Mimi weighed your hint against the drawing before guessing.";
+  if (attempt.source === "vision") return "Mimi spotted this from your drawing.";
+  return "Mimi is guessing from her cozy backup instincts.";
+}
+
+function fillGuessLine(template: string, attempt: GuessAttempt) {
+  return template
+    .replace("{guess}", attempt.guess)
+    .replace("{confidence}", String(Math.round(attempt.confidence * 100)));
 }
 
 function randomItem<T>(items: readonly T[]): T {
