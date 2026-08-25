@@ -4,7 +4,6 @@ import { FormEvent, PointerEvent, useCallback, useEffect, useMemo, useRef, useSt
 import { DrawingStroke, StructuredDrawing, strokesToStructuredDrawing } from "./drawingCodec";
 import { requestHybridGuess } from "./hybridGuessEngine";
 import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
-import { ModelProviderId, ModelSelection, defaultModelSelection, modelProviders } from "./modelProviders";
 
 type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY";
 type Mood = "idle" | "thinking" | "happy" | "oops" | "dramatic" | "playful" | "confident";
@@ -171,7 +170,6 @@ export default function GameDemo() {
   const [saveError, setSaveError] = useState("");
   const [memorySaveKey, setMemorySaveKey] = useState("");
   const [solved, setSolved] = useState(false);
-  const [modelSelection, setModelSelection] = useState<ModelSelection>(defaultModelSelection);
   const [modelCenterOpen, setModelCenterOpen] = useState(false);
 
   const requestNextGuess = useCallback((
@@ -197,7 +195,6 @@ export default function GameDemo() {
       userHints: hintsForGuess,
       round,
       targetWord: word,
-      modelSelection,
     });
     await minimumThinkTime;
 
@@ -208,7 +205,7 @@ export default function GameDemo() {
     setHintThinking(false);
     setMood(nextMood);
     setDialogue(buildGuessLine(directedAttempt, nextMood, round));
-  }), [modelSelection, structuredDrawing, userHints, word]);
+  }), [structuredDrawing, userHints, word]);
 
   useEffect(() => {
     if (!thinking) return;
@@ -328,7 +325,6 @@ export default function GameDemo() {
           drawingDataUrl: drawing,
           attempts,
           solved,
-          modelSelection,
         }),
       });
       const data = await response.json() as { error?: string };
@@ -344,7 +340,7 @@ export default function GameDemo() {
   return (
     <main className="game-shell">
       <div className="room-backdrop" aria-hidden="true" />
-      <GameChrome state={gameState} modelSelection={modelSelection} onOpenModels={() => setModelCenterOpen(true)} />
+      <GameChrome state={gameState} onOpenModels={() => setModelCenterOpen(true)} />
       <section className={`stage state-${gameState.toLowerCase()}`}>
         {gameState === "INVITE" && <InviteScreen onPlay={beginGame} mood={mood} />}
         {gameState === "WORD_REVEAL" && <WordReveal word={word} dialogue={dialogue} onStart={() => setGameState("DRAWING")} />}
@@ -390,11 +386,7 @@ export default function GameDemo() {
         )}
       </section>
       {modelCenterOpen && (
-        <ModelCenter
-          selection={modelSelection}
-          onChange={setModelSelection}
-          onClose={() => setModelCenterOpen(false)}
-        />
+        <ModelCenter onClose={() => setModelCenterOpen(false)} />
       )}
     </main>
   );
@@ -420,7 +412,7 @@ function gameDirector(attempt: GuessAttempt, word: GameWordEntry, round: number,
   return attempt;
 }
 
-function GameChrome({ state, modelSelection, onOpenModels }: { state: GameState; modelSelection: ModelSelection; onOpenModels: () => void }) {
+function GameChrome({ state, onOpenModels }: { state: GameState; onOpenModels: () => void }) {
   const active = state === "INVITE" || state === "WORD_REVEAL" || state === "DRAWING" ? "Draw" : state === "GUESSING" || state === "RESULT" ? "Guess" : "Memory";
   return (
     <header className="game-chrome">
@@ -433,8 +425,8 @@ function GameChrome({ state, modelSelection, onOpenModels }: { state: GameState;
       <div className="chrome-actions">
         <button className="model-button" type="button" onClick={onOpenModels} aria-label="Open AI model center">
           <span className="model-pulse" />
-          <span>AI Model</span>
-          <small>{modelProviders.find((item) => item.id === modelSelection.provider)?.name}</small>
+          <span>连接模型</span>
+          <small>Use your own API</small>
         </button>
         <button className="sound-button" aria-label="Sound on" type="button">🔊</button>
       </div>
@@ -442,11 +434,7 @@ function GameChrome({ state, modelSelection, onOpenModels }: { state: GameState;
   );
 }
 
-type ProviderStatus = Record<ModelProviderId, boolean>;
-
-function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelection; onChange: (selection: ModelSelection) => void; onClose: () => void }) {
-  const [statuses, setStatuses] = useState<ProviderStatus>({ openai: false, anthropic: false, gemini: false });
-  const [testing, setTesting] = useState(false);
+function ModelCenter({ onClose }: { onClose: () => void }) {
   const [testMessage, setTestMessage] = useState("");
   const [serviceUrl, setServiceUrl] = useState("https://api.openai.com/v1");
   const [customModel, setCustomModel] = useState("gpt-4.1-mini");
@@ -456,15 +444,6 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
 
   useEffect(() => {
     let active = true;
-    fetch("/api/models")
-      .then((response) => response.json())
-      .then((data: { providers?: Array<{ id: ModelProviderId; configured: boolean }> }) => {
-        if (!active) return;
-        const next = { openai: false, anthropic: false, gemini: false };
-        data.providers?.forEach((provider) => { next[provider.id] = provider.configured; });
-        setStatuses(next);
-      })
-      .catch(() => undefined);
     fetch("/api/model-connection")
       .then((response) => response.json())
       .then((data: { connected?: boolean; baseUrl?: string; model?: string }) => {
@@ -476,26 +455,6 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
-
-  const provider = modelProviders.find((item) => item.id === selection.provider) ?? modelProviders[0];
-
-  async function testConnection() {
-    setTesting(true);
-    setTestMessage("");
-    try {
-      const response = await fetch("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selection }),
-      });
-      const data = await response.json() as { error?: string };
-      setTestMessage(response.ok ? "Connected. Mimi can see with this model." : data.error ?? "Connection failed.");
-    } catch {
-      setTestMessage("Connection failed. Mimi will use fallback mode.");
-    } finally {
-      setTesting(false);
-    }
-  }
 
   async function saveCustomConnection(event: FormEvent) {
     event.preventDefault();
@@ -543,54 +502,7 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
           <button className="primary-button" disabled={savingConnection || !serviceUrl.trim() || !customModel.trim() || (!apiKey.trim() && !customConnected)} type="submit">{savingConnection ? "正在连接..." : "保存"}</button>
         </form>
 
-        <div className="model-divider"><span>或使用网站已配置模型</span></div>
-
-        <div className="provider-tabs" role="tablist" aria-label="AI providers">
-          {modelProviders.map((item) => (
-            <button
-              className={selection.provider === item.id ? "active" : ""}
-              key={item.id}
-              type="button"
-              onClick={() => {
-                onChange({ provider: item.id, model: item.models[0].id });
-                setTestMessage("");
-              }}
-            >
-              <span className="provider-mark" style={{ background: item.accent }}>{item.name.slice(0, 1)}</span>
-              <span>{item.name}<small>{statuses[item.id] ? "Ready" : "Needs key"}</small></span>
-            </button>
-          ))}
-        </div>
-
-        <div className="model-list" role="radiogroup" aria-label={`${provider.name} models`}>
-          {provider.models.map((model) => (
-            <button
-              className={selection.model === model.id ? "model-option selected" : "model-option"}
-              key={model.id}
-              type="button"
-              role="radio"
-              aria-checked={selection.model === model.id}
-              onClick={() => {
-                onChange({ provider: provider.id, model: model.id });
-                setTestMessage("");
-              }}
-            >
-              <span className="radio-dot" />
-              <span><strong>{model.name}</strong><small>{model.note}</small></span>
-              {selection.model === model.id && <b>Selected</b>}
-            </button>
-          ))}
-        </div>
-
-        <div className={statuses[selection.provider] ? "connection-note ready" : "connection-note"}>
-          <span className="status-light" />
-          <p>{statuses[selection.provider] ? `${provider.name} is configured on the server.` : `Add ${provider.envKey} to the server to activate ${provider.name}.`}</p>
-        </div>
         {testMessage && <p className="test-message" aria-live="polite">{testMessage}</p>}
-        <div className="model-center-actions">
-          <button className="secondary-button" type="button" disabled={testing || !statuses[selection.provider]} onClick={testConnection}>{testing ? "Mimi is checking..." : "Test Connection"}</button>
-          <button className="primary-button" type="button" onClick={onClose}>Use This Model</button>
-        </div>
         <p className="privacy-note">API Key 会加密保存到 HttpOnly 会话，页面脚本无法读取；连接不可用时游戏仍会进入 fallback 模式。</p>
       </section>
     </div>

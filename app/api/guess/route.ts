@@ -1,4 +1,3 @@
-import { runVisionGuess } from "../../modelGateway";
 import { readConnection } from "../../modelConnection";
 import { runCustomVisionGuess } from "../../modelGateway";
 
@@ -14,7 +13,6 @@ type GuessRequest = {
   round?: number;
   previousGuesses?: string[];
   userHints?: string[];
-  modelSelection?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -49,7 +47,7 @@ export async function POST(request: Request) {
   try {
     const customConnection = await readConnection(request);
     if (customConnection) return Response.json(await runCustomVisionGuess(customConnection, prompt, canvasImage));
-    return Response.json(await runVisionGuess(payload.modelSelection, prompt, canvasImage));
+    return Response.json({ error: "Connect your own model to enable vision guessing." }, { status: 503 });
   } catch {
     return Response.json({ error: "Mimi got distracted." }, { status: 502 });
   }

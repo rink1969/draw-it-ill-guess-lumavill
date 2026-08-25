@@ -30,17 +30,11 @@ Word reveal → Drawing canvas → Vision guess → Player confirms
 
 ## AI Model Center
 
-The `AI Model` button in the top-right corner opens the model center. Visitors can connect their own OpenAI-compatible vision service by entering its service URL, model name, and API Key, then pressing Save. The connection is tested immediately and stored in an encrypted HttpOnly session cookie, so the page cannot read the key back. A visitor connection takes priority over site-managed providers.
+The `连接模型` button in the top-right corner opens the model center. Visitors connect their own OpenAI-compatible vision service by entering its service URL, model name, and API Key, then pressing Save. The connection is tested immediately and stored in an encrypted HttpOnly session cookie, so the page cannot read the key back. The website does not include or provide a model of its own.
 
 Set `MODEL_CONNECTION_SECRET` on the server to a long random value before enabling visitor connections in production. Localhost uses a development-only secret automatically.
 
-| Provider | Environment variable | Included models |
-| --- | --- | --- |
-| OpenAI | `OPENAI_API_KEY` | GPT-4.1 mini, GPT-4o mini, GPT-5 mini |
-| Anthropic | `ANTHROPIC_API_KEY` | Claude Sonnet 4.5, Claude Haiku |
-| Google | `GEMINI_API_KEY` | Gemini 2.5 Flash, Gemini 2.5 Pro |
-
-API keys are never returned to the browser. The client sends only the selected provider/model and drawing data to the project's own API routes.
+API keys are never returned to page scripts. If no visitor model is connected, the complete game remains playable through the local fallback guess engine.
 
 ## Persistence
 
@@ -63,9 +57,6 @@ Open [http://localhost:3000](http://localhost:3000).
 Create a local `.env` when testing real providers:
 
 ```dotenv
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GEMINI_API_KEY=
 MODEL_CONNECTION_SECRET=
 ```
 

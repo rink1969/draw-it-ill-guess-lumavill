@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { ensureMemoryStorage, getDb } from "../../../db";
 import { memories } from "../../../db/schema";
-import { isValidSelection } from "../../modelProviders";
+import { readConnection } from "../../modelConnection";
 
 type MemoryPayload = {
   saveKey?: string;
@@ -14,7 +14,6 @@ type MemoryPayload = {
   drawingDataUrl?: string;
   attempts?: Array<{ guess?: string; confidence?: number; isCorrect?: boolean; source?: string }>;
   solved?: boolean;
-  modelSelection?: unknown;
 };
 
 export async function GET() {
@@ -66,11 +65,8 @@ export async function POST(request: Request) {
     if (!drawingDataUrl.startsWith("data:image/") || drawingDataUrl.length > 2_000_000) {
       return Response.json({ error: "Drawing is missing or too large to save." }, { status: 400 });
     }
-    if (!isValidSelection(payload.modelSelection)) {
-      return Response.json({ error: "Model selection is invalid." }, { status: 400 });
-    }
-
     const db = getDb();
+    const connection = await readConnection(request);
     const existing = await db.select({ id: memories.id }).from(memories).where(eq(memories.saveKey, saveKey)).limit(1);
     if (existing[0]) return Response.json({ id: existing[0].id, saved: true });
 
@@ -85,8 +81,8 @@ export async function POST(request: Request) {
       drawingDataUrl,
       attemptsJson: JSON.stringify(attempts),
       solved: Boolean(payload.solved),
-      provider: payload.modelSelection.provider,
-      model: payload.modelSelection.model,
+      provider: connection ? "visitor" : "fallback",
+      model: connection?.model ?? "local-fallback",
     }).returning({ id: memories.id, createdAt: memories.createdAt });
 
     return Response.json({ memory, saved: true }, { status: 201 });

@@ -38,7 +38,7 @@ test("server-renders the game invite", async () => {
 });
 
 test("keeps the full drawing game flow in source", async () => {
-  const [game, agent, hybrid, api, memoryApi, connectionApi, connectionVault, schema, gateway, providers, css, packageJson] = await Promise.all([
+  const [game, agent, hybrid, api, memoryApi, connectionApi, connectionVault, schema, gateway, css, packageJson] = await Promise.all([
     readFile(new URL("../app/GameDemo.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/mockAgentService.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/hybridGuessEngine.ts", import.meta.url), "utf8"),
@@ -48,7 +48,6 @@ test("keeps the full drawing game flow in source", async () => {
     readFile(new URL("../app/modelConnection.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/modelGateway.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/modelProviders.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
@@ -97,17 +96,10 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(connectionVault, /AES-GCM/);
   assert.match(connectionVault, /HttpOnly/);
   assert.match(gateway, /runCustomVisionGuess/);
-  assert.match(hybrid, /modelSelection/);
-  assert.match(gateway, /OPENAI_API_KEY/);
-  assert.match(gateway, /ANTHROPIC_API_KEY/);
-  assert.match(gateway, /GEMINI_API_KEY/);
-  assert.match(gateway, /api\.anthropic\.com/);
-  assert.match(gateway, /generativelanguage\.googleapis\.com/);
-  assert.match(providers, /gpt-4\.1-mini/);
-  assert.match(providers, /claude-sonnet/);
-  assert.match(providers, /gemini-2\.5-flash/);
+  assert.doesNotMatch(game, /网站已配置模型|Needs key|provider-tabs/);
+  assert.doesNotMatch(gateway, /OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY/);
   assert.match(api, /previousGuesses/);
-  assert.match(gateway, /input_image/);
+  assert.match(gateway, /image_url/);
   assert.doesNotMatch(api, /targetWord|Birthday Cake|aliases/);
   assert.match(css, /@keyframes floaty/);
   assert.match(css, /@media \(max-width: 900px\)/);
