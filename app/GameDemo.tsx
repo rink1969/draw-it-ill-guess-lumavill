@@ -994,10 +994,10 @@ function getPartnerProgress(stats: SessionStats, rapport: number, locale: Locale
     if (stats.games >= 2) return { title: "Unlocked: Patient Practice", message: "Repeated guesses helped you build a shared language. Next time, you will find the right direction faster.", mimi: "We kept trying, and now I understand your drawing style a little better." };
     return { title: "Unlocked: First Shared Look", message: "You and Mimi completed a full round of teamwork. Your partnership has begun to grow.", mimi: "Today I started learning how you turn ideas into lines." };
   }
-  if (rapport >= 90) return { title: "达成：心有灵犀", message: "你们已经能从很少的线条里抓住彼此的重点，观察与表达都更精准了。", mimi: "Your lines make sense to me faster now. We're becoming a real team!" };
-  if (rapport >= 75) return { title: "达成：线索搭档", message: "Mimi 更会结合轮廓与提示，你也更懂得如何画出关键特征。", mimi: "I learned which clues matter most in your drawings today." };
-  if (stats.games >= 2) return { title: "达成：耐心练习", message: "你们在反复猜测中建立了共同语言，下一次会更快找到正确方向。", mimi: "We kept trying, and now I understand your drawing style a little better." };
-  return { title: "达成：第一次共同观察", message: "你和 Mimi 完成了一次完整协作，伙伴默契已经开始生长。", mimi: "Today I started learning how you turn ideas into lines." };
+  if (rapport >= 90) return { title: "达成：心有灵犀", message: "你们已经能从很少的线条里抓住彼此的重点，观察与表达都更精准了。", mimi: "我现在能更快看懂你的线条了，我们越来越像真正的搭档！" };
+  if (rapport >= 75) return { title: "达成：线索搭档", message: "Mimi 更会结合轮廓与提示，你也更懂得如何画出关键特征。", mimi: "今天我学会了哪些线索在你的画里最重要。" };
+  if (stats.games >= 2) return { title: "达成：耐心练习", message: "你们在反复猜测中建立了共同语言，下一次会更快找到正确方向。", mimi: "我们一直没有放弃，现在我更了解你的绘画方式了。" };
+  return { title: "达成：第一次共同观察", message: "你和 Mimi 完成了一次完整协作，伙伴默契已经开始生长。", mimi: "今天我开始明白，你是怎样把想法变成线条的。" };
 }
 
 function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean; title: string; story: string }) {
