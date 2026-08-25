@@ -177,6 +177,8 @@ export default function GameDemo() {
   const [memorySaveKey, setMemorySaveKey] = useState("");
   const [solved, setSolved] = useState(false);
   const [modelCenterOpen, setModelCenterOpen] = useState(false);
+  const [modelConnected, setModelConnected] = useState(false);
+  const [guessError, setGuessError] = useState("");
   const [sessionStats, setSessionStats] = useState<SessionStats>({ games: 0, totalAttempts: 0, silverOre: 0, stone: 0 });
   const pools = dialoguePools[locale];
 
@@ -184,6 +186,13 @@ export default function GameDemo() {
     const saved = window.localStorage.getItem("lumavill-language");
     const next = saved === "zh" || saved === "en" ? saved : navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
     setLocale(next);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/model-connection")
+      .then((response) => response.ok ? response.json() : { connected: false })
+      .then((data: { connected?: boolean }) => setModelConnected(Boolean(data.connected)))
+      .catch(() => setModelConnected(false));
   }, []);
 
   function changeLocale(next: Locale) {
@@ -208,24 +217,34 @@ export default function GameDemo() {
     setCurrentAttempt(null);
 
     const minimumThinkTime = delay(hasHint ? 2450 : 1550);
-    const attempt = await requestHybridGuess({
-      canvasImage,
-      structuredDrawing: structuredForGuess,
-      previousGuesses: existingAttempts.map((item) => item.guess),
-      userHints: hintsForGuess,
-      round,
-      targetWord: word,
-      locale,
-    });
-    await minimumThinkTime;
+    setGuessError("");
+    try {
+      const attempt = await requestHybridGuess({
+        canvasImage,
+        structuredDrawing: structuredForGuess,
+        previousGuesses: existingAttempts.map((item) => item.guess),
+        userHints: hintsForGuess,
+        round,
+        targetWord: word,
+        locale,
+      });
+      await minimumThinkTime;
 
-    const directedAttempt = gameDirector(attempt, word, round, locale);
-    const nextMood = directedAttempt.isCorrect ? "confident" : randomItem(["playful", "dramatic", "confident"] as const);
-    setCurrentAttempt(directedAttempt);
-    setThinking(false);
-    setHintThinking(false);
-    setMood(nextMood);
-    setDialogue(buildGuessLine(directedAttempt, nextMood, round, locale));
+      const directedAttempt = gameDirector(attempt, word, round, locale);
+      const nextMood = directedAttempt.isCorrect ? "confident" : randomItem(["playful", "dramatic", "confident"] as const);
+      setCurrentAttempt(directedAttempt);
+      setMood(nextMood);
+      setDialogue(buildGuessLine(directedAttempt, nextMood, round, locale));
+    } catch {
+      await minimumThinkTime;
+      setModelConnected(false);
+      setMood("oops");
+      setGuessError(locale === "zh" ? "模型连接已中断，请重新连接后继续。" : "The model connection was interrupted. Reconnect to continue.");
+      setDialogue(locale === "zh" ? "我现在看不到画面了，重新连接模型后我再认真猜。" : "I can't see the drawing right now. Reconnect the model and I'll look again.");
+    } finally {
+      setThinking(false);
+      setHintThinking(false);
+    }
   }), [locale, pools, structuredDrawing, userHints, word]);
 
   useEffect(() => {
@@ -243,6 +262,10 @@ export default function GameDemo() {
   }, [hintThinking, pools, thinking, thinkingLineIndex]);
 
   function beginGame() {
+    if (!modelConnected) {
+      setModelCenterOpen(true);
+      return;
+    }
     const nextWord = pickWord(firstRound);
     setFirstRound(false);
     setWord(nextWord);
@@ -252,6 +275,7 @@ export default function GameDemo() {
     setUserHints([]);
     setHintInput("");
     setCurrentAttempt(null);
+    setGuessError("");
     setSaveStatus("idle");
     setSaveError("");
     setMemorySaveKey(globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
@@ -391,7 +415,7 @@ export default function GameDemo() {
         onLocaleChange={changeLocale}
       />
       <section className={`stage state-${gameState.toLowerCase()}`}>
-        {gameState === "INVITE" && <InviteScreen onPlay={beginGame} mood={mood} />}
+        {gameState === "INVITE" && <InviteScreen connected={modelConnected} onConnect={() => setModelCenterOpen(true)} onPlay={beginGame} mood={mood} />}
         {gameState === "WORD_REVEAL" && <WordReveal word={word} dialogue={dialogue} onStart={() => setGameState("DRAWING")} />}
         {gameState === "DRAWING" && <DrawingScreen word={word} mood={mood} onSubmit={startGuessing} />}
         {gameState === "GUESSING" && (
@@ -405,9 +429,11 @@ export default function GameDemo() {
             isUsingHint={hintThinking}
             mood={mood}
             needsHint={needsHint}
+            guessError={guessError}
             onAnswer={handleGuessAnswer}
             onHintInput={setHintInput}
             onSubmitHint={submitHint}
+            onReconnect={() => setModelCenterOpen(true)}
             userHints={userHints}
           />
         )}
@@ -446,7 +472,7 @@ export default function GameDemo() {
         )}
       </section>
       {modelCenterOpen && (
-        <ModelCenter onClose={() => setModelCenterOpen(false)} />
+        <ModelCenter onClose={() => setModelCenterOpen(false)} onConnectionChange={setModelConnected} />
       )}
     </main>
     </LocaleContext.Provider>
@@ -488,7 +514,7 @@ function GameChrome({ state, onBack, onOpenModels, locale, onLocaleChange }: { s
   );
 }
 
-function ModelCenter({ onClose }: { onClose: () => void }) {
+function ModelCenter({ onClose, onConnectionChange }: { onClose: () => void; onConnectionChange: (connected: boolean) => void }) {
   const locale = useLocale();
   const [testMessage, setTestMessage] = useState("");
   const [serviceUrl, setServiceUrl] = useState("https://api.openai.com/v1");
@@ -504,12 +530,13 @@ function ModelCenter({ onClose }: { onClose: () => void }) {
       .then((data: { connected?: boolean; baseUrl?: string; model?: string }) => {
         if (!active) return;
         setCustomConnected(Boolean(data.connected));
+        onConnectionChange(Boolean(data.connected));
         if (data.baseUrl) setServiceUrl(data.baseUrl);
         if (data.model) setCustomModel(data.model);
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, []);
+  }, [onConnectionChange]);
 
   async function saveCustomConnection(event: FormEvent) {
     event.preventDefault();
@@ -524,10 +551,12 @@ function ModelCenter({ onClose }: { onClose: () => void }) {
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || (locale === "zh" ? "连接失败。" : "Connection failed."));
       setCustomConnected(true);
+      onConnectionChange(true);
       setApiKey("");
       setTestMessage(locale === "zh" ? "已连接并安全保存。Kaka 会优先使用这个模型。" : "Connected and saved securely. Kaka will use this model first.");
     } catch (error) {
       setCustomConnected(false);
+      onConnectionChange(false);
       setTestMessage(error instanceof Error ? error.message : locale === "zh" ? "连接失败。" : "Connection failed.");
     } finally {
       setSavingConnection(false);
@@ -558,13 +587,13 @@ function ModelCenter({ onClose }: { onClose: () => void }) {
         </form>
 
         {testMessage && <p className="test-message" aria-live="polite">{testMessage}</p>}
-        <p className="privacy-note">{locale === "zh" ? "API Key 会加密保存到 HttpOnly 会话，页面脚本无法读取；连接不可用时游戏仍会使用备用模式。" : "Your API Key is encrypted in an HttpOnly session and cannot be read by page scripts. The game uses backup mode if the connection is unavailable."}</p>
+        <p className="privacy-note">{locale === "zh" ? "API Key 会加密保存到 HttpOnly 会话，页面脚本无法读取。连接成功后才能开始游戏。" : "Your API Key is encrypted in an HttpOnly session and cannot be read by page scripts. Connect successfully before starting the game."}</p>
       </section>
     </div>
   );
 }
 
-function InviteScreen({ onPlay, mood }: { onPlay: () => void; mood: Mood }) {
+function InviteScreen({ connected, onConnect, onPlay, mood }: { connected: boolean; onConnect: () => void; onPlay: () => void; mood: Mood }) {
   const locale = useLocale();
   return (
     <div className="invite-layout">
@@ -572,7 +601,7 @@ function InviteScreen({ onPlay, mood }: { onPlay: () => void; mood: Mood }) {
         <p className="kicker">{locale === "zh" ? "落星镇伙伴游戏" : "LumaVill Partner Game"}</p>
         <h1>{locale === "zh" ? "你画，我来猜！" : "Draw It, I'll Guess!"}</h1>
         <CompanionDialogue lines={locale === "zh" ? ["嗨！想和我玩你画我猜吗？"] : ["Hey! Wanna play a drawing game with me?"]} />
-        <button className="primary-button" type="button" onClick={onPlay}>{locale === "zh" ? "和 Kaka 一起玩" : "Play with Kaka"}</button>
+        <button className="primary-button" type="button" onClick={connected ? onPlay : onConnect}>{connected ? (locale === "zh" ? "和 Kaka 一起玩" : "Play with Kaka") : (locale === "zh" ? "连接模型后开始" : "Connect a Model to Start")}</button>
       </div>
       <CompanionAvatar mood={mood} />
     </div>
@@ -812,6 +841,7 @@ function GuessScreen({
   attempts,
   dialogue,
   drawing,
+  guessError,
   hintInput,
   isThinking,
   isUsingHint,
@@ -819,6 +849,7 @@ function GuessScreen({
   needsHint,
   onAnswer,
   onHintInput,
+  onReconnect,
   onSubmitHint,
   userHints,
 }: {
@@ -826,6 +857,7 @@ function GuessScreen({
   attempts: GuessAttempt[];
   dialogue: string;
   drawing: string;
+  guessError: string;
   hintInput: string;
   isThinking: boolean;
   isUsingHint: boolean;
@@ -833,6 +865,7 @@ function GuessScreen({
   needsHint: boolean;
   onAnswer: (playerSaysCorrect: boolean) => void;
   onHintInput: (value: string) => void;
+  onReconnect: () => void;
   onSubmitHint: () => void;
   userHints: string[];
 }) {
@@ -847,7 +880,12 @@ function GuessScreen({
           <img src={drawing} alt="Kaka looking at your drawing" />
           {isThinking && <span className="scan-line" aria-hidden="true" />}
         </div>
-        {needsHint ? (
+        {guessError ? (
+          <div className="hint-panel connection-error">
+            <p>{guessError}</p>
+            <button className="primary-button" type="button" onClick={onReconnect}>{locale === "zh" ? "重新连接模型" : "Reconnect Model"}</button>
+          </div>
+        ) : needsHint ? (
           <div className="hint-panel">
             <p>{locale === "zh" ? "Kaka 已经猜错三次了。给她一条简短的文字提示，她会继续认真猜。" : "Kaka has missed three times. Give her a small text hint, then she will keep guessing."}</p>
             {userHints.length > 0 && (

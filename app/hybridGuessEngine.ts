@@ -1,6 +1,6 @@
 "use client";
 
-import { GameWordEntry, GuessAttempt, getFallbackGuess, isCorrectGuess } from "./mockAgentService";
+import { GameWordEntry, GuessAttempt, isCorrectGuess } from "./mockAgentService";
 import { StructuredDrawing } from "./drawingCodec";
 import { canonicalGuess, Locale, localizeGuess } from "./i18n";
 
@@ -50,14 +50,6 @@ export async function requestHybridGuess({
       source: "vision",
       isCorrect: isCorrectGuess(canonicalGuess(guess), targetWord),
     };
-  } catch {
-    const guess = localizeGuess(getFallbackGuess(targetWord, previousGuesses, round, userHints), locale);
-    return {
-      guess,
-      confidence: fallbackConfidence(round),
-      source: "fallback",
-      isCorrect: isCorrectGuess(guess, targetWord),
-    };
   } finally {
     window.clearTimeout(timeout);
   }
@@ -66,9 +58,4 @@ export async function requestHybridGuess({
 function clampConfidence(value: unknown) {
   if (typeof value !== "number" || Number.isNaN(value)) return 0.5;
   return Math.max(0, Math.min(1, value));
-}
-
-function fallbackConfidence(round: number) {
-  const base = round === 1 ? 0.34 : round === 2 ? 0.52 : 0.68;
-  return Math.min(0.86, base + Math.random() * 0.18);
 }

@@ -31,7 +31,7 @@ test("server-renders the game invite", async () => {
   const html = await response.text();
   assert.match(html, /<title>Draw It, I&#x27;ll Guess! \| LumaVill<\/title>/i);
   assert.match(html, /你画，我来猜！/);
-  assert.match(html, /和 Kaka 一起玩/);
+  assert.match(html, /连接模型后开始/);
   assert.match(html, /mimi-gator\.png/);
   assert.match(html, /嗨！想和我玩你画我猜吗？/);
   assert.match(html, />中<.*>EN</s);
@@ -92,7 +92,9 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(agent, /aliases:/);
   assert.ok((agent.match(/word:/g) ?? []).length >= 50);
   assert.match(hybrid, /fetch\("\/api\/guess"/);
-  assert.match(hybrid, /getFallbackGuess/);
+  assert.doesNotMatch(hybrid, /getFallbackGuess/);
+  assert.match(game, /if \(!modelConnected\)/);
+  assert.match(game, /重新连接模型/);
   assert.match(hybrid, /isCorrectGuess/);
   assert.match(game, /AI Model Center/);
   assert.match(game, /服务地址/);
