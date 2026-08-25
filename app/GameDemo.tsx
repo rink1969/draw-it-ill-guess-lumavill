@@ -1014,7 +1014,6 @@ function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: G
         <ul>{attempts.map((attempt, index) => <li key={`${attempt.guess}-${index}`}>{attempt.guess} {attempt.isCorrect ? "✅" : "❌"}</li>)}</ul>
         <strong>{solved ? (locale === "zh" ? `Kaka 在第 ${attempts.length} 次猜对了。` : `Kaka got it on try ${attempts.length}.`) : (locale === "zh" ? "Kaka 这次没能解开谜题。" : "Kaka did not crack the case this time.")}</strong>
         <p className={`memory-reward reward-${reward.type}`}>{reward.quantity > 0 ? `${locale === "zh" ? "奖励" : "Reward"}: ${reward.name} ×${reward.quantity}` : (locale === "zh" ? "奖励：无物资" : "Reward: No material")}</p>
-        <time>{locale === "zh" ? "今天" : "Today"}</time>
       </div>
     </article>
   );
