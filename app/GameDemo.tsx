@@ -269,10 +269,9 @@ export default function GameDemo() {
         stone: stats.stone + (reward.type === "stone" ? 1 : 0),
       }));
       setSolved(true);
-      setCurrentAttempt(null);
       setMood("happy");
       setDialogue(randomItem(correctLines));
-      window.setTimeout(() => setGameState("RESULT"), 900);
+      setGameState("RESULT");
       return;
     }
 
