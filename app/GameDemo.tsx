@@ -381,7 +381,7 @@ export default function GameDemo() {
 
   return (
     <LocaleContext.Provider value={locale}>
-    <main className="game-shell">
+    <main className={`game-shell lang-${locale}`}>
       <div className="room-backdrop" aria-hidden="true" />
       <GameChrome
         state={gameState}
