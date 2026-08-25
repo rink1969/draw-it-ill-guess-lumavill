@@ -874,7 +874,7 @@ function ResultScreen({ word, drawing, attempts, solved, dialogue, onMemory }: {
         <strong>{word.word} {word.emoji}</strong>
         <GuessList attempts={attempts} />
         <RewardPanel reward={reward} attemptCount={attempts.length} />
-        <CompanionDialogue lines={[dialogue, solved ? randomItem(correctLines) : "I'm keeping this mystery for training my vibes."]} />
+        <CompanionDialogue lines={[dialogue]} />
       </div>
     </div>
   );
