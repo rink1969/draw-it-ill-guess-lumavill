@@ -571,7 +571,7 @@ function InviteScreen({ onPlay, mood }: { onPlay: () => void; mood: Mood }) {
       <div className="invite-copy">
         <p className="kicker">{locale === "zh" ? "落星镇伙伴游戏" : "LumaVill Partner Game"}</p>
         <h1>{locale === "zh" ? "你画，我来猜！" : "Draw It, I'll Guess!"}</h1>
-        <CompanionDialogue lines={locale === "zh" ? ["嗨！想和我玩你画我猜吗？", "落星镇会给你一个题目，我不偷看，只看你的画认真猜！"] : ["Hey! Wanna play a drawing game with me?", "LumaVill will give you a word. I won't peek; I'll guess only from your drawing!"]} />
+        <CompanionDialogue lines={locale === "zh" ? ["嗨！想和我玩你画我猜吗？"] : ["Hey! Wanna play a drawing game with me?"]} />
         <button className="primary-button" type="button" onClick={onPlay}>{locale === "zh" ? "和 Mimi 一起玩" : "Play with Mimi"}</button>
       </div>
       <CompanionAvatar mood={mood} />
