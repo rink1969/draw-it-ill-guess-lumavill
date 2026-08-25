@@ -1,7 +1,5 @@
 import { clearConnectionCookie, readConnection, sealConnection, validateConnection } from "../../modelConnection";
-import { runCustomVisionGuess } from "../../modelGateway";
-
-const pixel = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=";
+import { testCustomModelConnection } from "../../modelGateway";
 
 export async function GET(request: Request) {
   const connection = await readConnection(request);
@@ -14,10 +12,15 @@ export async function POST(request: Request) {
   const connection = validateConnection(payload);
   if (!connection) return Response.json({ error: "Please complete the service URL, model name, and API Key." }, { status: 400 });
   try {
-    await runCustomVisionGuess(connection, 'Return only JSON: {"guess":"dot","confidence":0.5,"reaction":"ready"}.', pixel);
+    await testCustomModelConnection(connection);
     return Response.json({ connected: true, baseUrl: connection.baseUrl, model: connection.model }, { headers: { "Set-Cookie": await sealConnection(connection, request) } });
   } catch (error) {
-    const message = error instanceof Error && error.message.includes("MODEL_CONNECTION_SECRET") ? "Connection storage is not configured on this server." : "Could not connect. Check the address, model, and API Key.";
+    const detail = error instanceof Error ? error.message : "";
+    const message = detail.includes("MODEL_CONNECTION_SECRET")
+      ? "Connection storage is not configured on this server."
+      : detail.startsWith("provider_")
+        ? `Could not connect (${detail.replace(/^provider_/, "HTTP ")}).`
+        : "Could not connect. Check the address, model, and API Key.";
     return Response.json({ error: message }, { status: 502 });
   }
 }
