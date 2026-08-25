@@ -571,7 +571,7 @@ function InviteScreen({ onPlay, mood }: { onPlay: () => void; mood: Mood }) {
       <div className="invite-copy">
         <p className="kicker">{locale === "zh" ? "落星镇伙伴游戏" : "LumaVill Partner Game"}</p>
         <h1>{locale === "zh" ? "你画，我来猜！" : "Draw It, I'll Guess!"}</h1>
-        <CompanionDialogue lines={locale === "zh" ? ["嗨！想和我玩你画我猜吗？", "我来出题，你来画，然后让我认真猜！"] : ["Hey! Wanna play a drawing game with me?", "I'll give you a word. You draw it, and I'll guess!"]} />
+        <CompanionDialogue lines={locale === "zh" ? ["嗨！想和我玩你画我猜吗？", "落星镇会给你一个题目，我不偷看，只看你的画认真猜！"] : ["Hey! Wanna play a drawing game with me?", "LumaVill will give you a word. I won't peek; I'll guess only from your drawing!"]} />
         <button className="primary-button" type="button" onClick={onPlay}>{locale === "zh" ? "和 Mimi 一起玩" : "Play with Mimi"}</button>
       </div>
       <CompanionAvatar mood={mood} />
@@ -584,7 +584,7 @@ function WordReveal({ word, dialogue, onStart }: { word: GameWordEntry; dialogue
   return (
     <div className="center-stack">
       <CompanionAvatar mood="happy" compact />
-      <h2>{locale === "zh" ? "Mimi 为你选好了题目！" : "Mimi picked a word for you!"}</h2>
+      <h2>{locale === "zh" ? "落星镇送来了一个题目！" : "LumaVill sent you a word!"}</h2>
       <CompanionDialogue lines={[dialogue]} />
       <div className="word-card">
         <span>🎨 {locale === "zh" ? "你的题目" : "YOUR WORD"}</span>
