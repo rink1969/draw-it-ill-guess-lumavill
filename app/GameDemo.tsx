@@ -200,7 +200,7 @@ export default function GameDemo() {
     });
     await minimumThinkTime;
 
-    const directedAttempt = gameDirector(attempt, word, round, existingAttempts);
+    const directedAttempt = gameDirector(attempt);
     const nextMood = directedAttempt.isCorrect ? "confident" : randomItem(["playful", "dramatic", "confident"] as const);
     setCurrentAttempt(directedAttempt);
     setThinking(false);
@@ -271,6 +271,19 @@ export default function GameDemo() {
       setSolved(true);
       setMood("happy");
       setDialogue(randomItem(correctLines));
+      setGameState("RESULT");
+      return;
+    }
+
+    if (nextAttempts.length >= 6) {
+      setSessionStats((stats) => ({
+        ...stats,
+        games: stats.games + 1,
+        totalAttempts: stats.totalAttempts + nextAttempts.length,
+      }));
+      setSolved(false);
+      setMood("oops");
+      setDialogue(randomItem(finalMissLines));
       setGameState("RESULT");
       return;
     }
@@ -416,23 +429,7 @@ export default function GameDemo() {
   );
 }
 
-function gameDirector(attempt: GuessAttempt, word: GameWordEntry, round: number, existingAttempts: GuessAttempt[]): GuessAttempt {
-  if (attempt.isCorrect) return attempt;
-  if (attempt.source === "fallback") return attempt;
-  const alreadyGuessed = existingAttempts.some((item) => item.guess.toLowerCase() === attempt.guess.toLowerCase());
-  if (alreadyGuessed) {
-    return {
-      guess: word.fallbackGuesses.find((guess) => !existingAttempts.some((item) => item.guess.toLowerCase() === guess.toLowerCase())) ?? attempt.guess,
-      confidence: 0.42,
-      source: "director",
-      isCorrect: false,
-    };
-  }
-  const shouldNudgeOnLastRound = round === 3 && Math.random() < 0.28;
-  if (shouldNudgeOnLastRound) {
-    const guess = word.aliases[0] ?? word.word;
-    return { guess, confidence: 0.76, source: "director", isCorrect: true };
-  }
+function gameDirector(attempt: GuessAttempt): GuessAttempt {
   return attempt;
 }
 
