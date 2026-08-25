@@ -584,7 +584,7 @@ function WordReveal({ word, dialogue, onStart }: { word: GameWordEntry; dialogue
   return (
     <div className="center-stack">
       <CompanionAvatar mood="happy" compact />
-      <h2>{locale === "zh" ? "落星镇送来了一个题目！" : "LumaVill sent you a word!"}</h2>
+      <h2>{locale === "zh" ? "你的题目" : "Your Word"}</h2>
       <CompanionDialogue lines={[dialogue]} />
       <div className="word-card">
         <span>🎨 {locale === "zh" ? "你的题目" : "YOUR WORD"}</span>
