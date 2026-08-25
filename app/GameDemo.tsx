@@ -5,7 +5,7 @@ import { DrawingStroke, StructuredDrawing, strokesToStructuredDrawing } from "./
 import { requestHybridGuess } from "./hybridGuessEngine";
 import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
 
-type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY";
+type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY" | "SUMMARY";
 type Mood = "idle" | "thinking" | "happy" | "oops" | "dramatic" | "playful" | "confident";
 type BrushSize = "Small" | "Medium" | "Large";
 type DrawingSubmission = {
@@ -15,6 +15,7 @@ type DrawingSubmission = {
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 type MemoryCopy = { title: string; story: string };
 type GameReward = { type: "silver_ore" | "stone" | "none"; name: string; quantity: number; message: string };
+type SessionStats = { games: number; totalAttempts: number; silverOre: number; stone: number };
 
 const brushSizes: Record<BrushSize, number> = { Small: 4, Medium: 9, Large: 16 };
 const colors = ["#25231d", "#e75f54", "#4c8bd8", "#f2c94c", "#6c9f49"];
@@ -171,6 +172,7 @@ export default function GameDemo() {
   const [memorySaveKey, setMemorySaveKey] = useState("");
   const [solved, setSolved] = useState(false);
   const [modelCenterOpen, setModelCenterOpen] = useState(false);
+  const [sessionStats, setSessionStats] = useState<SessionStats>({ games: 0, totalAttempts: 0, silverOre: 0, stone: 0 });
 
   const requestNextGuess = useCallback((
     async (
@@ -259,7 +261,15 @@ export default function GameDemo() {
     setAttempts(nextAttempts);
 
     if (playerSaysCorrect) {
+      const reward = getGameReward(true, nextAttempts.length);
+      setSessionStats((stats) => ({
+        games: stats.games + 1,
+        totalAttempts: stats.totalAttempts + nextAttempts.length,
+        silverOre: stats.silverOre + (reward.type === "silver_ore" ? 1 : 0),
+        stone: stats.stone + (reward.type === "stone" ? 1 : 0),
+      }));
       setSolved(true);
+      setCurrentAttempt(null);
       setMood("happy");
       setDialogue(randomItem(correctLines));
       window.setTimeout(() => setGameState("RESULT"), 900);
@@ -340,7 +350,11 @@ export default function GameDemo() {
   return (
     <main className="game-shell">
       <div className="room-backdrop" aria-hidden="true" />
-      <GameChrome state={gameState} onOpenModels={() => setModelCenterOpen(true)} />
+      <GameChrome
+        state={gameState}
+        onBack={() => setGameState(sessionStats.games > 0 ? "SUMMARY" : "INVITE")}
+        onOpenModels={() => setModelCenterOpen(true)}
+      />
       <section className={`stage state-${gameState.toLowerCase()}`}>
         {gameState === "INVITE" && <InviteScreen onPlay={beginGame} mood={mood} />}
         {gameState === "WORD_REVEAL" && <WordReveal word={word} dialogue={dialogue} onStart={() => setGameState("DRAWING")} />}
@@ -382,6 +396,17 @@ export default function GameDemo() {
             solved={solved}
             onSave={saveMemory}
             onPlayAgain={playAgain}
+            onBack={() => setGameState("SUMMARY")}
+          />
+        )}
+        {gameState === "SUMMARY" && (
+          <SessionSummary
+            stats={sessionStats}
+            onContinue={playAgain}
+            onFinish={() => {
+              setSessionStats({ games: 0, totalAttempts: 0, silverOre: 0, stone: 0 });
+              playAgain();
+            }}
           />
         )}
       </section>
@@ -412,11 +437,11 @@ function gameDirector(attempt: GuessAttempt, word: GameWordEntry, round: number,
   return attempt;
 }
 
-function GameChrome({ state, onOpenModels }: { state: GameState; onOpenModels: () => void }) {
+function GameChrome({ state, onBack, onOpenModels }: { state: GameState; onBack: () => void; onOpenModels: () => void }) {
   const active = state === "INVITE" || state === "WORD_REVEAL" || state === "DRAWING" ? "Draw" : state === "GUESSING" || state === "RESULT" ? "Guess" : "Memory";
   return (
     <header className="game-chrome">
-      <button className="plain-button" type="button">← LumaVill</button>
+      <button className="plain-button" type="button" onClick={onBack}>← LumaVill</button>
       <nav className="progress-pills" aria-label="Game progress">
         {["Draw", "Guess", "Memory"].map((step) => (
           <span className={step === active ? "active" : ""} key={step}>{step}</span>
@@ -855,7 +880,7 @@ function ResultScreen({ word, drawing, attempts, solved, dialogue, onMemory }: {
   );
 }
 
-function MemoryScreen({ word, drawing, attempts, saveStatus, saveError, solved, onSave, onPlayAgain }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; saveStatus: SaveStatus; saveError: string; solved: boolean; onSave: (copy: MemoryCopy) => void; onPlayAgain: () => void }) {
+function MemoryScreen({ word, drawing, attempts, saveStatus, saveError, solved, onSave, onPlayAgain, onBack }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; saveStatus: SaveStatus; saveError: string; solved: boolean; onSave: (copy: MemoryCopy) => void; onPlayAgain: () => void; onBack: () => void }) {
   const title = useMemo(() => randomItem(memoryTitles), []);
   const story = useMemo(() => randomItem(memoryLines), []);
   const saved = saveStatus === "saved";
@@ -873,11 +898,60 @@ function MemoryScreen({ word, drawing, attempts, saveStatus, saveError, solved, 
           {saveStatus === "saving" ? "Saving..." : saved ? "Saved ✓" : saveStatus === "error" ? "Try Saving Again" : "Save Memory"}
         </button>
         <button className="secondary-button" type="button" onClick={onPlayAgain}>Play Again</button>
-        <button className="plain-button warm" type="button" onClick={onPlayAgain}>Back to LumaVill</button>
+        <button className="plain-button warm" type="button" onClick={onBack}>Back to LumaVill</button>
       </div>
       {saveError && <p className="save-error" role="alert">{saveError}</p>}
     </div>
   );
+}
+
+function SessionSummary({ stats, onContinue, onFinish }: { stats: SessionStats; onContinue: () => void; onFinish: () => void }) {
+  const rapport = getRapport(stats);
+  const progress = getPartnerProgress(stats, rapport);
+  return (
+    <div className="summary-layout">
+      <CompanionAvatar mood="happy" compact />
+      <article className="summary-card">
+        <p className="kicker">Today's Partner Report</p>
+        <h2>今天我们更懂彼此了</h2>
+        <p className="summary-lead">Mimi 把今天的合作认真记进了落星镇伙伴手册。</p>
+        <div className="summary-stats">
+          <div><span>参与答题</span><strong>{stats.games}</strong><small>题</small></div>
+          <div><span>默契度</span><strong>{rapport}</strong><small>%</small></div>
+          <div><span>平均猜测</span><strong>{stats.games ? (stats.totalAttempts / stats.games).toFixed(1) : "0"}</strong><small>次</small></div>
+        </div>
+        <div className="summary-materials">
+          <div><div className="reward-icon silver_ore" aria-hidden="true"><i /><i /><i /></div><span>银矿石</span><strong>×{stats.silverOre}</strong></div>
+          <div><div className="reward-icon stone" aria-hidden="true"><i /><i /><i /></div><span>石头</span><strong>×{stats.stone}</strong></div>
+        </div>
+        <section className="partner-progress">
+          <span>PARTNER PROGRESS</span>
+          <h3>{progress.title}</h3>
+          <p>{progress.message}</p>
+          <div className="rapport-track"><i style={{ width: `${rapport}%` }} /></div>
+        </section>
+        <CompanionDialogue lines={[progress.mimi]} />
+        <div className="summary-actions">
+          <button className="secondary-button" type="button" onClick={onContinue}>再玩一题</button>
+          <button className="primary-button" type="button" onClick={onFinish}>结束今日游戏</button>
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function getRapport(stats: SessionStats) {
+  if (!stats.games) return 0;
+  const average = stats.totalAttempts / stats.games;
+  const practiceBonus = Math.min(8, (stats.games - 1) * 2);
+  return Math.max(45, Math.min(98, Math.round(100 - (average - 1) * 13 + practiceBonus)));
+}
+
+function getPartnerProgress(stats: SessionStats, rapport: number) {
+  if (rapport >= 90) return { title: "达成：心有灵犀", message: "你们已经能从很少的线条里抓住彼此的重点，观察与表达都更精准了。", mimi: "Your lines make sense to me faster now. We're becoming a real team!" };
+  if (rapport >= 75) return { title: "达成：线索搭档", message: "Mimi 更会结合轮廓与提示，你也更懂得如何画出关键特征。", mimi: "I learned which clues matter most in your drawings today." };
+  if (stats.games >= 2) return { title: "达成：耐心练习", message: "你们在反复猜测中建立了共同语言，下一次会更快找到正确方向。", mimi: "We kept trying, and now I understand your drawing style a little better." };
+  return { title: "达成：第一次共同观察", message: "你和 Mimi 完成了一次完整协作，伙伴默契已经开始生长。", mimi: "Today I started learning how you turn ideas into lines." };
 }
 
 function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean; title: string; story: string }) {

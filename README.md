@@ -13,6 +13,7 @@ A cozy drawing-and-guessing mini game where the player draws a prompted word and
 - Requests text hints after three misses and keeps guessing until the player confirms success.
 - Saves completed games as persistent Memory records in Cloudflare D1.
 - Awards one Silver Ore when Mimi succeeds within three guesses, or one Stone within five guesses.
+- Shows a daily partner summary when leaving, including completed questions, rapport, collected materials, and relationship progress.
 
 ## Game Flow
 

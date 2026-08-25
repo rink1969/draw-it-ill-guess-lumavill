@@ -52,7 +52,7 @@ test("keeps the full drawing game flow in source", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  for (const state of ["INVITE", "WORD_REVEAL", "DRAWING", "GUESSING", "RESULT", "MEMORY"]) {
+  for (const state of ["INVITE", "WORD_REVEAL", "DRAWING", "GUESSING", "RESULT", "MEMORY", "SUMMARY"]) {
     assert.match(game, new RegExp(`"${state}"`));
   }
 
@@ -72,6 +72,10 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(game, /attemptCount <= 3/);
   assert.match(game, /attemptCount <= 5/);
   assert.match(game, /RewardPanel/);
+  assert.match(game, /Today's Partner Report/);
+  assert.match(game, /getRapport/);
+  assert.match(game, /silverOre/);
+  assert.match(game, /partner-progress/);
   assert.match(memoryApi, /db\.insert\(memories\)/);
   assert.match(memoryApi, /saveKey/);
   assert.match(schema, /sqliteTable\("memories"/);
