@@ -13,6 +13,7 @@ type GuessRequest = {
   round?: number;
   previousGuesses?: string[];
   userHints?: string[];
+  locale?: "en" | "zh";
 };
 
 export async function POST(request: Request) {
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
   const userHints = Array.isArray(payload.userHints)
     ? payload.userHints.map((hint) => String(hint).trim()).filter(Boolean).slice(-6)
     : [];
+  const locale = payload.locale === "zh" ? "zh" : "en";
 
   if (!canvasImage?.startsWith("data:image/png;base64,")) {
     return Response.json({ error: "Drawing image is required." }, { status: 400 });
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
     structuredDrawing ? structuredDrawing.asciiGridNote : "",
     "Use the overall silhouette and stroke direction. Do not overfit to a single mark.",
     "Use user hints as clues, but still make only one concise guess. Do not repeat previous guesses. It is okay to be wrong.",
+    locale === "zh" ? "Write the guess and reaction in Simplified Chinese only." : "Write the guess and reaction in English only.",
     "Return only JSON with this shape: {\"guess\":\"...\",\"confidence\":0.0,\"reaction\":\"...\"}.",
   ].filter(Boolean).join("\n\n");
 

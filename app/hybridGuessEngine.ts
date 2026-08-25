@@ -2,6 +2,7 @@
 
 import { GameWordEntry, GuessAttempt, getFallbackGuess, isCorrectGuess } from "./mockAgentService";
 import { StructuredDrawing } from "./drawingCodec";
+import { canonicalGuess, Locale, localizeGuess } from "./i18n";
 
 type VisionGuessResponse = {
   guess?: string;
@@ -16,6 +17,7 @@ export async function requestHybridGuess({
   userHints,
   round,
   targetWord,
+  locale,
 }: {
   canvasImage: string;
   structuredDrawing: StructuredDrawing | null;
@@ -23,6 +25,7 @@ export async function requestHybridGuess({
   userHints: string[];
   round: number;
   targetWord: GameWordEntry;
+  locale: Locale;
 }): Promise<GuessAttempt> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 4200);
@@ -32,7 +35,7 @@ export async function requestHybridGuess({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({ canvasImage, structuredDrawing, previousGuesses, userHints, round }),
+      body: JSON.stringify({ canvasImage, structuredDrawing, previousGuesses, userHints, round, locale }),
     });
 
     if (!response.ok) throw new Error("Mimi blinked at the drawing for too long.");
@@ -41,14 +44,14 @@ export async function requestHybridGuess({
     if (!guess) throw new Error("Mimi made a mystery noise instead of a guess.");
 
     return {
-      guess,
+      guess: localizeGuess(guess, locale),
       confidence: clampConfidence(data.confidence),
       reaction: data.reaction,
       source: "vision",
-      isCorrect: isCorrectGuess(guess, targetWord),
+      isCorrect: isCorrectGuess(canonicalGuess(guess), targetWord),
     };
   } catch {
-    const guess = getFallbackGuess(targetWord, previousGuesses, round, userHints);
+    const guess = localizeGuess(getFallbackGuess(targetWord, previousGuesses, round, userHints), locale);
     return {
       guess,
       confidence: fallbackConfidence(round),

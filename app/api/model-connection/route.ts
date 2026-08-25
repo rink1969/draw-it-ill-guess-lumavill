@@ -7,20 +7,21 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json() as { baseUrl?: string; model?: string; apiKey?: string };
+  const payload = await request.json() as { baseUrl?: string; model?: string; apiKey?: string; locale?: "en" | "zh" };
+  const zh = payload.locale === "zh";
   if (!payload.apiKey) payload.apiKey = (await readConnection(request))?.apiKey;
   const connection = validateConnection(payload);
-  if (!connection) return Response.json({ error: "Please complete the service URL, model name, and API Key." }, { status: 400 });
+  if (!connection) return Response.json({ error: zh ? "请完整填写服务地址、模型名称和 API Key。" : "Please complete the service URL, model name, and API Key." }, { status: 400 });
   try {
     await testCustomModelConnection(connection);
     return Response.json({ connected: true, baseUrl: connection.baseUrl, model: connection.model }, { headers: { "Set-Cookie": await sealConnection(connection, request) } });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "";
     const message = detail.includes("MODEL_CONNECTION_SECRET")
-      ? "Connection storage is not configured on this server."
+      ? (zh ? "服务器尚未配置连接信息存储。" : "Connection storage is not configured on this server.")
       : detail.startsWith("provider_")
-        ? `Could not connect (${detail.replace(/^provider_/, "HTTP ")}).`
-        : "Could not connect. Check the address, model, and API Key.";
+        ? (zh ? `无法连接（${detail.replace(/^provider_/, "HTTP ")}）。` : `Could not connect (${detail.replace(/^provider_/, "HTTP ")}).`)
+        : (zh ? "无法连接，请检查服务地址、模型名称和 API Key。" : "Could not connect. Check the address, model, and API Key.");
     return Response.json({ error: message }, { status: 502 });
   }
 }

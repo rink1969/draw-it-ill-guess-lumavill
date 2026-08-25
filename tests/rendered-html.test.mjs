@@ -31,9 +31,10 @@ test("server-renders the game invite", async () => {
   const html = await response.text();
   assert.match(html, /<title>Draw It, I&#x27;ll Guess! \| LumaVill<\/title>/i);
   assert.match(html, /你画，我来猜！/);
-  assert.match(html, /Play with Mimi/);
+  assert.match(html, /和 Mimi 一起玩/);
   assert.match(html, /mimi-gator\.png/);
-  assert.match(html, /Hey! Wanna play a drawing game with me\?/);
+  assert.match(html, /嗨！想和我玩你画我猜吗？/);
+  assert.match(html, />中<.*>EN</s);
   assert.doesNotMatch(html, /SkeletonPreview|codex-preview|react-loading-skeleton/);
 });
 
