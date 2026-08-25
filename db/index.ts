@@ -1,6 +1,8 @@
-import { env } from "cloudflare:workers";
+import { env as workerEnv } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
+
+const env = workerEnv as unknown as { DB?: D1Database };
 
 export function getDb() {
   if (!env.DB) {
@@ -35,7 +37,7 @@ export function ensureMemoryStorage() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
       )`),
       env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_save_key ON memories (save_key)"),
-    ]).then(() => undefined).catch((error) => {
+    ]).then(() => undefined).catch((error: unknown) => {
       initialized = null;
       throw error;
     });

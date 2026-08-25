@@ -191,7 +191,12 @@ export default function GameDemo() {
   useEffect(() => {
     fetch("/api/model-connection")
       .then((response) => response.ok ? response.json() : { connected: false })
-      .then((data: { connected?: boolean }) => setModelConnected(Boolean(data.connected)))
+      .then((data: unknown) => {
+        const connected = typeof data === "object" && data !== null && "connected" in data
+          ? Boolean(data.connected)
+          : false;
+        setModelConnected(connected);
+      })
       .catch(() => setModelConnected(false));
   }, []);
 
@@ -527,8 +532,11 @@ function ModelCenter({ onClose, onConnectionChange }: { onClose: () => void; onC
     let active = true;
     fetch("/api/model-connection")
       .then((response) => response.json())
-      .then((data: { connected?: boolean; baseUrl?: string; model?: string }) => {
+      .then((value: unknown) => {
         if (!active) return;
+        const data = typeof value === "object" && value !== null
+          ? value as { connected?: boolean; baseUrl?: string; model?: string }
+          : {};
         setCustomConnected(Boolean(data.connected));
         onConnectionChange(Boolean(data.connected));
         if (data.baseUrl) setServiceUrl(data.baseUrl);
