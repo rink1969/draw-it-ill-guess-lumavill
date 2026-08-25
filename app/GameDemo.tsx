@@ -200,7 +200,7 @@ export default function GameDemo() {
     });
     await minimumThinkTime;
 
-    const directedAttempt = gameDirector(attempt);
+    const directedAttempt = gameDirector(attempt, word, round);
     const nextMood = directedAttempt.isCorrect ? "confident" : randomItem(["playful", "dramatic", "confident"] as const);
     setCurrentAttempt(directedAttempt);
     setThinking(false);
@@ -275,7 +275,7 @@ export default function GameDemo() {
       return;
     }
 
-    if (nextAttempts.length >= 6) {
+    if (nextAttempts.length >= 8) {
       setSessionStats((stats) => ({
         ...stats,
         games: stats.games + 1,
@@ -429,7 +429,11 @@ export default function GameDemo() {
   );
 }
 
-function gameDirector(attempt: GuessAttempt): GuessAttempt {
+function gameDirector(attempt: GuessAttempt, word: GameWordEntry, round: number): GuessAttempt {
+  if (!attempt.isCorrect && round === 6 && Math.random() < 0.28) {
+    const guess = word.aliases[0] ?? word.word;
+    return { guess, confidence: 0.78, source: "director", isCorrect: true };
+  }
   return attempt;
 }
 

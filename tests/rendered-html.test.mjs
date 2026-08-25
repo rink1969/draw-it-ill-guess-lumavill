@@ -82,8 +82,8 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(schema, /idx_memories_save_key/);
   assert.match(game, /requestNextGuess/);
   assert.match(game, /gameDirector/);
-  assert.match(game, /nextAttempts\.length >= 6/);
-  assert.doesNotMatch(game, /shouldNudgeOnLastRound|Math\.random\(\) < 0\.28/);
+  assert.match(game, /nextAttempts\.length >= 8/);
+  assert.match(game, /round === 6 && Math\.random\(\) < 0\.28/);
   assert.match(game, /finalMissLines/);
   assert.match(agent, /category:/);
   assert.match(agent, /difficulty:/);

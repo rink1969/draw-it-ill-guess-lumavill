@@ -10,8 +10,8 @@ A cozy drawing-and-guessing mini game where the player draws a prompted word and
 - Keeps the target word away from the vision model and judges correctness inside game logic.
 - Falls back to the local guess engine if a provider is missing, slow, or unavailable.
 - Lets the player confirm whether Mimi's guess is right.
-- Requests text hints after three misses and continues for up to six genuine guesses.
-- Never rewrites an AI guess into the correct answer; after six genuine misses, the round settles without a material reward.
+- Requests text hints after three misses and continues for up to eight guesses.
+- Respects the AI's original guesses in rounds 1–5; only round 6 has a 28% Game Director correction chance. If all eight attempts miss, the round settles without a material reward.
 - Saves completed games as persistent Memory records in Cloudflare D1.
 - Awards one Silver Ore when Mimi succeeds within three guesses, or one Stone within five guesses.
 - Shows a daily partner summary when leaving, including completed questions, rapport, collected materials, and relationship progress.
