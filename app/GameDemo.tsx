@@ -4,6 +4,7 @@ import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 
 import { DrawingStroke, StructuredDrawing, strokesToStructuredDrawing } from "./drawingCodec";
 import { requestHybridGuess } from "./hybridGuessEngine";
 import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
+import { ModelProviderId, ModelSelection, defaultModelSelection, modelProviders } from "./modelProviders";
 
 type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY";
 type Mood = "idle" | "thinking" | "happy" | "oops" | "dramatic" | "playful" | "confident";
@@ -158,6 +159,8 @@ export default function GameDemo() {
   const [hintInput, setHintInput] = useState("");
   const [saved, setSaved] = useState(false);
   const [solved, setSolved] = useState(false);
+  const [modelSelection, setModelSelection] = useState<ModelSelection>(defaultModelSelection);
+  const [modelCenterOpen, setModelCenterOpen] = useState(false);
 
   const requestNextGuess = useCallback((
     async (
@@ -182,6 +185,7 @@ export default function GameDemo() {
       userHints: hintsForGuess,
       round,
       targetWord: word,
+      modelSelection,
     });
     await minimumThinkTime;
 
@@ -192,7 +196,7 @@ export default function GameDemo() {
     setHintThinking(false);
     setMood(nextMood);
     setDialogue(buildGuessLine(directedAttempt, nextMood, round));
-  }), [structuredDrawing, userHints, word]);
+  }), [modelSelection, structuredDrawing, userHints, word]);
 
   useEffect(() => {
     if (!thinking) return;
@@ -293,7 +297,7 @@ export default function GameDemo() {
   return (
     <main className="game-shell">
       <div className="room-backdrop" aria-hidden="true" />
-      <GameChrome state={gameState} />
+      <GameChrome state={gameState} modelSelection={modelSelection} onOpenModels={() => setModelCenterOpen(true)} />
       <section className={`stage state-${gameState.toLowerCase()}`}>
         {gameState === "INVITE" && <InviteScreen onPlay={beginGame} mood={mood} />}
         {gameState === "WORD_REVEAL" && <WordReveal word={word} dialogue={dialogue} onStart={() => setGameState("DRAWING")} />}
@@ -340,6 +344,13 @@ export default function GameDemo() {
           />
         )}
       </section>
+      {modelCenterOpen && (
+        <ModelCenter
+          selection={modelSelection}
+          onChange={setModelSelection}
+          onClose={() => setModelCenterOpen(false)}
+        />
+      )}
     </main>
   );
 }
@@ -364,7 +375,7 @@ function gameDirector(attempt: GuessAttempt, word: GameWordEntry, round: number,
   return attempt;
 }
 
-function GameChrome({ state }: { state: GameState }) {
+function GameChrome({ state, modelSelection, onOpenModels }: { state: GameState; modelSelection: ModelSelection; onOpenModels: () => void }) {
   const active = state === "INVITE" || state === "WORD_REVEAL" || state === "DRAWING" ? "Draw" : state === "GUESSING" || state === "RESULT" ? "Guess" : "Memory";
   return (
     <header className="game-chrome">
@@ -374,8 +385,120 @@ function GameChrome({ state }: { state: GameState }) {
           <span className={step === active ? "active" : ""} key={step}>{step}</span>
         ))}
       </nav>
-      <button className="sound-button" aria-label="Sound on" type="button">🔊</button>
+      <div className="chrome-actions">
+        <button className="model-button" type="button" onClick={onOpenModels} aria-label="Open AI model center">
+          <span className="model-pulse" />
+          <span>AI Model</span>
+          <small>{modelProviders.find((item) => item.id === modelSelection.provider)?.name}</small>
+        </button>
+        <button className="sound-button" aria-label="Sound on" type="button">🔊</button>
+      </div>
     </header>
+  );
+}
+
+type ProviderStatus = Record<ModelProviderId, boolean>;
+
+function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelection; onChange: (selection: ModelSelection) => void; onClose: () => void }) {
+  const [statuses, setStatuses] = useState<ProviderStatus>({ openai: false, anthropic: false, gemini: false });
+  const [testing, setTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/models")
+      .then((response) => response.json())
+      .then((data: { providers?: Array<{ id: ModelProviderId; configured: boolean }> }) => {
+        if (!active) return;
+        const next = { openai: false, anthropic: false, gemini: false };
+        data.providers?.forEach((provider) => { next[provider.id] = provider.configured; });
+        setStatuses(next);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const provider = modelProviders.find((item) => item.id === selection.provider) ?? modelProviders[0];
+
+  async function testConnection() {
+    setTesting(true);
+    setTestMessage("");
+    try {
+      const response = await fetch("/api/models/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selection }),
+      });
+      const data = await response.json() as { error?: string };
+      setTestMessage(response.ok ? "Connected. Mimi can see with this model." : data.error ?? "Connection failed.");
+    } catch {
+      setTestMessage("Connection failed. Mimi will use fallback mode.");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="model-overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="model-center" role="dialog" aria-modal="true" aria-labelledby="model-center-title">
+        <div className="model-center-heading">
+          <div>
+            <p className="kicker">Mimi's looking glass</p>
+            <h2 id="model-center-title">AI Model Center</h2>
+            <p>Choose which vision model watches your drawing.</p>
+          </div>
+          <button className="close-button" type="button" onClick={onClose} aria-label="Close model center">×</button>
+        </div>
+
+        <div className="provider-tabs" role="tablist" aria-label="AI providers">
+          {modelProviders.map((item) => (
+            <button
+              className={selection.provider === item.id ? "active" : ""}
+              key={item.id}
+              type="button"
+              onClick={() => {
+                onChange({ provider: item.id, model: item.models[0].id });
+                setTestMessage("");
+              }}
+            >
+              <span className="provider-mark" style={{ background: item.accent }}>{item.name.slice(0, 1)}</span>
+              <span>{item.name}<small>{statuses[item.id] ? "Ready" : "Needs key"}</small></span>
+            </button>
+          ))}
+        </div>
+
+        <div className="model-list" role="radiogroup" aria-label={`${provider.name} models`}>
+          {provider.models.map((model) => (
+            <button
+              className={selection.model === model.id ? "model-option selected" : "model-option"}
+              key={model.id}
+              type="button"
+              role="radio"
+              aria-checked={selection.model === model.id}
+              onClick={() => {
+                onChange({ provider: provider.id, model: model.id });
+                setTestMessage("");
+              }}
+            >
+              <span className="radio-dot" />
+              <span><strong>{model.name}</strong><small>{model.note}</small></span>
+              {selection.model === model.id && <b>Selected</b>}
+            </button>
+          ))}
+        </div>
+
+        <div className={statuses[selection.provider] ? "connection-note ready" : "connection-note"}>
+          <span className="status-light" />
+          <p>{statuses[selection.provider] ? `${provider.name} is configured on the server.` : `Add ${provider.envKey} to the server to activate ${provider.name}.`}</p>
+        </div>
+        {testMessage && <p className="test-message" aria-live="polite">{testMessage}</p>}
+        <div className="model-center-actions">
+          <button className="secondary-button" type="button" disabled={testing || !statuses[selection.provider]} onClick={testConnection}>{testing ? "Mimi is checking..." : "Test Connection"}</button>
+          <button className="primary-button" type="button" onClick={onClose}>Use This Model</button>
+        </div>
+        <p className="privacy-note">API keys stay on the server. If a model is unavailable, the game continues in fallback mode.</p>
+      </section>
+    </div>
   );
 }
 

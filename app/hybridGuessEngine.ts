@@ -2,6 +2,7 @@
 
 import { GameWordEntry, GuessAttempt, getFallbackGuess, isCorrectGuess } from "./mockAgentService";
 import { StructuredDrawing } from "./drawingCodec";
+import { ModelSelection } from "./modelProviders";
 
 type VisionGuessResponse = {
   guess?: string;
@@ -16,6 +17,7 @@ export async function requestHybridGuess({
   userHints,
   round,
   targetWord,
+  modelSelection,
 }: {
   canvasImage: string;
   structuredDrawing: StructuredDrawing | null;
@@ -23,6 +25,7 @@ export async function requestHybridGuess({
   userHints: string[];
   round: number;
   targetWord: GameWordEntry;
+  modelSelection: ModelSelection;
 }): Promise<GuessAttempt> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 4200);
@@ -32,7 +35,7 @@ export async function requestHybridGuess({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({ canvasImage, structuredDrawing, previousGuesses, userHints, round }),
+      body: JSON.stringify({ canvasImage, structuredDrawing, previousGuesses, userHints, round, modelSelection }),
     });
 
     if (!response.ok) throw new Error("Mimi blinked at the drawing for too long.");
