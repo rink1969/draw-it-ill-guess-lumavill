@@ -99,7 +99,7 @@ function databaseError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
   const unavailable = message.includes("no such table") || message.includes("D1 binding");
   return Response.json(
-    { error: unavailable ? "Memory storage is not ready yet." : "Mimi could not save this memory. Please try again." },
+    { error: unavailable ? "Memory storage is not ready yet." : "Kaka could not save this memory. Please try again." },
     { status: 500 },
   );
 }

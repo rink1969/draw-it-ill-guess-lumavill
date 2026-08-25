@@ -31,7 +31,7 @@ test("server-renders the game invite", async () => {
   const html = await response.text();
   assert.match(html, /<title>Draw It, I&#x27;ll Guess! \| LumaVill<\/title>/i);
   assert.match(html, /你画，我来猜！/);
-  assert.match(html, /和 Mimi 一起玩/);
+  assert.match(html, /和 Kaka 一起玩/);
   assert.match(html, /mimi-gator\.png/);
   assert.match(html, /嗨！想和我玩你画我猜吗？/);
   assert.match(html, />中<.*>EN</s);
@@ -60,7 +60,7 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(game, /<canvas/);
   assert.match(game, /onPointerDown/);
   assert.match(game, /toDataURL\("image\/png"\)/);
-  assert.match(game, /Let Mimi Guess!/);
+  assert.match(game, /Let Kaka Guess!/);
   assert.match(game, /Nope 😂/);
   assert.match(game, /Yes! 🎉/);
   assert.match(game, /playerSaysCorrect/);

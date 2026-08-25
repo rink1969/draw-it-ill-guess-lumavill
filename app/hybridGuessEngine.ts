@@ -38,10 +38,10 @@ export async function requestHybridGuess({
       body: JSON.stringify({ canvasImage, structuredDrawing, previousGuesses, userHints, round, locale }),
     });
 
-    if (!response.ok) throw new Error("Mimi blinked at the drawing for too long.");
+    if (!response.ok) throw new Error("Kaka blinked at the drawing for too long.");
     const data = (await response.json()) as VisionGuessResponse;
     const guess = data.guess?.trim();
-    if (!guess) throw new Error("Mimi made a mystery noise instead of a guess.");
+    if (!guess) throw new Error("Kaka made a mystery noise instead of a guess.");
 
     return {
       guess: localizeGuess(guess, locale),

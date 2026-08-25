@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Draw It, I'll Guess! | LumaVill",
-  description: "A cozy drawing and guessing mini game with Mimi.",
+  description: "A cozy drawing and guessing mini game with Kaka.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

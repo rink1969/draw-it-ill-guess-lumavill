@@ -129,15 +129,15 @@ const clueRoundGuessOpeners = [
 const memoryTitles = [
   "Our First Drawing Game",
   "The Great Cozy Guess",
-  "Mimi's Suspicious Sketch Case",
+  "Kaka's Suspicious Sketch Case",
   "A Very Important Art Memory",
   "The Day the Canvas Spoke",
 ];
 
 const memoryLines = [
   "Today we played Draw & Guess together.",
-  "Mimi stared at the canvas with heroic seriousness.",
-  "A tiny masterpiece appeared, and Mimi had opinions.",
+  "Kaka stared at the canvas with heroic seriousness.",
+  "A tiny masterpiece appeared, and Kaka had opinions.",
   "The drawing had charm. The guesses had confidence. Mostly.",
 ];
 
@@ -375,7 +375,7 @@ export default function GameDemo() {
       setMood("happy");
     } catch (error) {
       setSaveStatus("error");
-      setSaveError(error instanceof Error ? error.message : locale === "zh" ? "Mimi 无法保存这段记忆。" : "Mimi could not save this memory.");
+      setSaveError(error instanceof Error ? error.message : locale === "zh" ? "Kaka 无法保存这段记忆。" : "Kaka could not save this memory.");
     }
   }
 
@@ -525,7 +525,7 @@ function ModelCenter({ onClose }: { onClose: () => void }) {
       if (!response.ok) throw new Error(data.error || (locale === "zh" ? "连接失败。" : "Connection failed."));
       setCustomConnected(true);
       setApiKey("");
-      setTestMessage(locale === "zh" ? "已连接并安全保存。Mimi 会优先使用这个模型。" : "Connected and saved securely. Mimi will use this model first.");
+      setTestMessage(locale === "zh" ? "已连接并安全保存。Kaka 会优先使用这个模型。" : "Connected and saved securely. Kaka will use this model first.");
     } catch (error) {
       setCustomConnected(false);
       setTestMessage(error instanceof Error ? error.message : locale === "zh" ? "连接失败。" : "Connection failed.");
@@ -539,7 +539,7 @@ function ModelCenter({ onClose }: { onClose: () => void }) {
       <section className="model-center" role="dialog" aria-modal="true" aria-labelledby="model-center-title">
         <div className="model-center-heading">
           <div>
-            <p className="kicker">{locale === "zh" ? "Mimi 的观察镜" : "Mimi's Looking Glass"}</p>
+            <p className="kicker">{locale === "zh" ? "Kaka 的观察镜" : "Kaka's Looking Glass"}</p>
             <h2 id="model-center-title">{locale === "zh" ? "AI 模型中心" : "AI Model Center"}</h2>
             <p>{locale === "zh" ? "选择负责观察你画作的视觉模型。" : "Choose which vision model watches your drawing."}</p>
           </div>
@@ -572,7 +572,7 @@ function InviteScreen({ onPlay, mood }: { onPlay: () => void; mood: Mood }) {
         <p className="kicker">{locale === "zh" ? "落星镇伙伴游戏" : "LumaVill Partner Game"}</p>
         <h1>{locale === "zh" ? "你画，我来猜！" : "Draw It, I'll Guess!"}</h1>
         <CompanionDialogue lines={locale === "zh" ? ["嗨！想和我玩你画我猜吗？"] : ["Hey! Wanna play a drawing game with me?"]} />
-        <button className="primary-button" type="button" onClick={onPlay}>{locale === "zh" ? "和 Mimi 一起玩" : "Play with Mimi"}</button>
+        <button className="primary-button" type="button" onClick={onPlay}>{locale === "zh" ? "和 Kaka 一起玩" : "Play with Kaka"}</button>
       </div>
       <CompanionAvatar mood={mood} />
     </div>
@@ -801,7 +801,7 @@ function DrawingCanvas({ word, onSubmit }: { word: GameWordEntry; onSubmit: (sub
           }
         }}
       >
-        {locale === "zh" ? "让 Mimi 来猜！" : "Let Mimi Guess!"}
+        {locale === "zh" ? "让 Kaka 来猜！" : "Let Kaka Guess!"}
       </button>
     </section>
   );
@@ -844,12 +844,12 @@ function GuessScreen({
       <div className="guess-card">
         <CompanionDialogue lines={[dialogue]} />
         <div className={isThinking ? "guess-preview thinking-preview" : "guess-preview"}>
-          <img src={drawing} alt="Mimi looking at your drawing" />
+          <img src={drawing} alt="Kaka looking at your drawing" />
           {isThinking && <span className="scan-line" aria-hidden="true" />}
         </div>
         {needsHint ? (
           <div className="hint-panel">
-            <p>{locale === "zh" ? "Mimi 已经猜错三次了。给她一条简短的文字提示，她会继续认真猜。" : "Mimi has missed three times. Give her a small text hint, then she will keep guessing."}</p>
+            <p>{locale === "zh" ? "Kaka 已经猜错三次了。给她一条简短的文字提示，她会继续认真猜。" : "Kaka has missed three times. Give her a small text hint, then she will keep guessing."}</p>
             {userHints.length > 0 && (
               <div className="hint-history" aria-label="Hints already given">
                 {userHints.map((hint, index) => <span key={`${hint}-${index}`}>{hint}</span>)}
@@ -863,7 +863,7 @@ function GuessScreen({
               }}
             >
               <input
-                aria-label="Give Mimi a hint"
+                aria-label="Give Kaka a hint"
                 maxLength={80}
                 onChange={(event) => onHintInput(event.target.value)}
                 placeholder={locale === "zh" ? "例如：它是甜的 / 它生活在水里" : "e.g. It is sweet / It lives in water"}
@@ -874,8 +874,8 @@ function GuessScreen({
           </div>
         ) : isThinking || !attempt ? (
           <div className="thinking-block">
-            <div className="thinking-dots" aria-label="Mimi is thinking"><i /><i /><i /></div>
-            <p>{isUsingHint ? (locale === "zh" ? "Mimi 正结合你的提示重新检查画面。" : "Mimi is using your hint and checking the drawing again.") : (locale === "zh" ? "Mimi 正在仔细观察，马上就会给出答案。" : "Mimi is looking closely. She'll guess in a moment.")}</p>
+            <div className="thinking-dots" aria-label="Kaka is thinking"><i /><i /><i /></div>
+            <p>{isUsingHint ? (locale === "zh" ? "Kaka 正结合你的提示重新检查画面。" : "Kaka is using your hint and checking the drawing again.") : (locale === "zh" ? "Kaka 正在仔细观察，马上就会给出答案。" : "Kaka is looking closely. She'll guess in a moment.")}</p>
             {isUsingHint && userHints.length > 0 && <span className="active-hint">{locale === "zh" ? "当前提示" : "Current clue"}: {userHints[userHints.length - 1]}</span>}
           </div>
         ) : (
@@ -905,7 +905,7 @@ function ResultScreen({ word, drawing, attempts, solved, dialogue, onMemory }: {
     <div className="result-layout">
       <div className="result-art">
         <span className="burst">{solved ? "🎉" : "✨"}</span>
-        <h2>{solved ? (locale === "zh" ? "Mimi 猜对了！" : "Mimi guessed it!") : (locale === "zh" ? "Mimi 已经尽力啦！" : "Mimi gave it her best shot!")}</h2>
+        <h2>{solved ? (locale === "zh" ? "Kaka 猜对了！" : "Kaka guessed it!") : (locale === "zh" ? "Kaka 已经尽力啦！" : "Kaka gave it her best shot!")}</h2>
         <img src={drawing} alt="Your drawing" />
       </div>
       <div className="result-details">
@@ -928,7 +928,7 @@ function MemoryScreen({ word, drawing, attempts, saveStatus, saveError, solved, 
       <div className="memory-heading">
         <span>✨ {locale === "zh" ? "新记忆已生成" : "New Memory Created"}</span>
         <h2>{locale === "zh" ? "游戏完成！" : "Game Complete!"}</h2>
-        <p>{locale === "zh" ? "你和 Mimi 创造了一段新记忆。" : "You made a new memory with Mimi."}</p>
+        <p>{locale === "zh" ? "你和 Kaka 创造了一段新记忆。" : "You made a new memory with Kaka."}</p>
       </div>
       <MemoryCard word={word} drawing={drawing} attempts={attempts} solved={solved} title={title} story={story} />
       <CompanionDialogue lines={[saved ? (locale === "zh" ? "我一定会记住这一次。" : "I'm definitely remembering this one.") : (locale === "zh" ? "我要把它好好保存起来。" : "I'm keeping this."), solved ? randomItem(dialoguePools[locale].memoryLines) : (locale === "zh" ? "没解开的谜题也是很珍贵的记忆。" : "Unsolved mysteries are memories too. Very fancy.")]} />
@@ -954,7 +954,7 @@ function SessionSummary({ stats, onContinue, onFinish }: { stats: SessionStats; 
       <article className="summary-card">
         <p className="kicker">{locale === "zh" ? "今日伙伴报告" : "Today's Partner Report"}</p>
         <h2>{locale === "zh" ? "今天我们更懂彼此了" : "We Understand Each Other Better Today"}</h2>
-        <p className="summary-lead">{locale === "zh" ? "Mimi 把今天的合作认真记进了落星镇伙伴手册。" : "Mimi carefully recorded today's teamwork in the LumaVill partner journal."}</p>
+        <p className="summary-lead">{locale === "zh" ? "Kaka 把今天的合作认真记进了落星镇伙伴手册。" : "Kaka carefully recorded today's teamwork in the LumaVill partner journal."}</p>
         <div className="summary-stats">
           <div><span>{locale === "zh" ? "参与答题" : "Rounds Played"}</span><strong>{stats.games}</strong><small>{locale === "zh" ? "题" : "games"}</small></div>
           <div><span>{locale === "zh" ? "默契度" : "Rapport"}</span><strong>{rapport}</strong><small>%</small></div>
@@ -990,14 +990,14 @@ function getRapport(stats: SessionStats) {
 function getPartnerProgress(stats: SessionStats, rapport: number, locale: Locale) {
   if (locale === "en") {
     if (rapport >= 90) return { title: "Unlocked: Perfect Sync", message: "You can now catch each other's meaning from just a few lines. Your observation and expression are both sharper.", mimi: "Your lines make sense to me faster now. We're becoming a real team!" };
-    if (rapport >= 75) return { title: "Unlocked: Clue Partners", message: "Mimi is better at combining outlines and hints, and you are better at drawing the key features.", mimi: "I learned which clues matter most in your drawings today." };
+    if (rapport >= 75) return { title: "Unlocked: Clue Partners", message: "Kaka is better at combining outlines and hints, and you are better at drawing the key features.", mimi: "I learned which clues matter most in your drawings today." };
     if (stats.games >= 2) return { title: "Unlocked: Patient Practice", message: "Repeated guesses helped you build a shared language. Next time, you will find the right direction faster.", mimi: "We kept trying, and now I understand your drawing style a little better." };
-    return { title: "Unlocked: First Shared Look", message: "You and Mimi completed a full round of teamwork. Your partnership has begun to grow.", mimi: "Today I started learning how you turn ideas into lines." };
+    return { title: "Unlocked: First Shared Look", message: "You and Kaka completed a full round of teamwork. Your partnership has begun to grow.", mimi: "Today I started learning how you turn ideas into lines." };
   }
   if (rapport >= 90) return { title: "达成：心有灵犀", message: "你们已经能从很少的线条里抓住彼此的重点，观察与表达都更精准了。", mimi: "我现在能更快看懂你的线条了，我们越来越像真正的搭档！" };
-  if (rapport >= 75) return { title: "达成：线索搭档", message: "Mimi 更会结合轮廓与提示，你也更懂得如何画出关键特征。", mimi: "今天我学会了哪些线索在你的画里最重要。" };
+  if (rapport >= 75) return { title: "达成：线索搭档", message: "Kaka 更会结合轮廓与提示，你也更懂得如何画出关键特征。", mimi: "今天我学会了哪些线索在你的画里最重要。" };
   if (stats.games >= 2) return { title: "达成：耐心练习", message: "你们在反复猜测中建立了共同语言，下一次会更快找到正确方向。", mimi: "我们一直没有放弃，现在我更了解你的绘画方式了。" };
-  return { title: "达成：第一次共同观察", message: "你和 Mimi 完成了一次完整协作，伙伴默契已经开始生长。", mimi: "今天我开始明白，你是怎样把想法变成线条的。" };
+  return { title: "达成：第一次共同观察", message: "你和 Kaka 完成了一次完整协作，伙伴默契已经开始生长。", mimi: "今天我开始明白，你是怎样把想法变成线条的。" };
 }
 
 function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean; title: string; story: string }) {
@@ -1010,9 +1010,9 @@ function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: G
         <h3>{title}</h3>
         <p>{story}</p>
         <p>{locale === "zh" ? "你画的是" : "You drew"}: <b>{word.emoji} {wordName(word.word, locale)}</b></p>
-        <p>{locale === "zh" ? "Mimi 的猜测" : "Mimi guessed"}:</p>
+        <p>{locale === "zh" ? "Kaka 的猜测" : "Kaka guessed"}:</p>
         <ul>{attempts.map((attempt, index) => <li key={`${attempt.guess}-${index}`}>{attempt.guess} {attempt.isCorrect ? "✅" : "❌"}</li>)}</ul>
-        <strong>{solved ? (locale === "zh" ? `Mimi 在第 ${attempts.length} 次猜对了。` : `Mimi got it on try ${attempts.length}.`) : (locale === "zh" ? "Mimi 这次没能解开谜题。" : "Mimi did not crack the case this time.")}</strong>
+        <strong>{solved ? (locale === "zh" ? `Kaka 在第 ${attempts.length} 次猜对了。` : `Kaka got it on try ${attempts.length}.`) : (locale === "zh" ? "Kaka 这次没能解开谜题。" : "Kaka did not crack the case this time.")}</strong>
         <p className={`memory-reward reward-${reward.type}`}>{reward.quantity > 0 ? `${locale === "zh" ? "奖励" : "Reward"}: ${reward.name} ×${reward.quantity}` : (locale === "zh" ? "奖励：无物资" : "Reward: No material")}</p>
         <time>{locale === "zh" ? "今天" : "Today"}</time>
       </div>
@@ -1048,8 +1048,8 @@ function GuessList({ attempts }: { attempts: GuessAttempt[] }) {
 function CompanionAvatar({ mood, compact = false }: { mood: Mood; compact?: boolean }) {
   const locale = useLocale();
   return (
-    <div className={`avatar-wrap ${compact ? "compact" : ""} mood-${mood}`} aria-label="Mimi">
-      <img src="/mimi-gator.png" alt={locale === "zh" ? "你的绘画伙伴 Mimi" : "Mimi, your playful drawing partner"} />
+    <div className={`avatar-wrap ${compact ? "compact" : ""} mood-${mood}`} aria-label="Kaka">
+      <img src="/mimi-gator.png" alt={locale === "zh" ? "你的绘画伙伴 Kaka" : "Kaka, your playful drawing partner"} />
       <span className="shadow" />
     </div>
   );
@@ -1075,9 +1075,9 @@ function buildGuessLine(attempt: GuessAttempt, mood: Mood, round: number, locale
 }
 
 function guessNote(attempt: GuessAttempt, hasHint: boolean, locale: Locale) {
-  if (hasHint) return locale === "zh" ? "Mimi 把你的提示和画面仔细比较后才给出答案。" : "Mimi weighed your hint against the drawing before guessing.";
-  if (attempt.source === "vision") return locale === "zh" ? "Mimi 是认真观察你的画后得出这个答案的。" : "Mimi spotted this from your drawing.";
-  return locale === "zh" ? "Mimi正在猜测" : "Mimi is guessing";
+  if (hasHint) return locale === "zh" ? "Kaka 把你的提示和画面仔细比较后才给出答案。" : "Kaka weighed your hint against the drawing before guessing.";
+  if (attempt.source === "vision") return locale === "zh" ? "Kaka 是认真观察你的画后得出这个答案的。" : "Kaka spotted this from your drawing.";
+  return locale === "zh" ? "Kaka正在猜测" : "Kaka is guessing";
 }
 
 function fillGuessLine(template: string, attempt: GuessAttempt) {

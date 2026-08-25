@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const prompt = [
-    "You are Mimi, a playful AI companion playing a drawing guessing game.",
+    "You are Kaka, a playful AI companion playing a drawing guessing game.",
     "Look carefully at the user's drawing image and the structured drawing data, then guess what object or concept it represents.",
     `Current round: ${round}.`,
     `Previous guesses: ${previousGuesses.length ? previousGuesses.join(", ") : "none"}.`,
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (customConnection) return Response.json(await runCustomVisionGuess(customConnection, prompt, canvasImage));
     return Response.json({ error: "Connect your own model to enable vision guessing." }, { status: 503 });
   } catch {
-    return Response.json({ error: "Mimi got distracted." }, { status: 502 });
+    return Response.json({ error: "Kaka got distracted." }, { status: 502 });
   }
 }
 
