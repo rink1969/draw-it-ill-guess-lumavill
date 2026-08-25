@@ -30,7 +30,9 @@ Word reveal → Drawing canvas → Vision guess → Player confirms
 
 ## AI Model Center
 
-The `AI Model` button in the top-right corner opens the model center. It shows which providers are configured, lets the player select a supported model, and can run a connection test.
+The `AI Model` button in the top-right corner opens the model center. Visitors can connect their own OpenAI-compatible vision service by entering its service URL, model name, and API Key, then pressing Save. The connection is tested immediately and stored in an encrypted HttpOnly session cookie, so the page cannot read the key back. A visitor connection takes priority over site-managed providers.
+
+Set `MODEL_CONNECTION_SECRET` on the server to a long random value before enabling visitor connections in production. Localhost uses a development-only secret automatically.
 
 | Provider | Environment variable | Included models |
 | --- | --- | --- |
@@ -64,6 +66,7 @@ Create a local `.env` when testing real providers:
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
+MODEL_CONNECTION_SECRET=
 ```
 
 Without a configured provider, the complete game remains playable through the fallback guess engine.

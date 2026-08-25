@@ -1,4 +1,6 @@
 import { runVisionGuess } from "../../modelGateway";
+import { readConnection } from "../../modelConnection";
+import { runCustomVisionGuess } from "../../modelGateway";
 
 type GuessRequest = {
   canvasImage?: string;
@@ -45,6 +47,8 @@ export async function POST(request: Request) {
   ].filter(Boolean).join("\n\n");
 
   try {
+    const customConnection = await readConnection(request);
+    if (customConnection) return Response.json(await runCustomVisionGuess(customConnection, prompt, canvasImage));
     return Response.json(await runVisionGuess(payload.modelSelection, prompt, canvasImage));
   } catch {
     return Response.json({ error: "Mimi got distracted." }, { status: 502 });

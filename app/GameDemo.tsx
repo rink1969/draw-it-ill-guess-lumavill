@@ -1,6 +1,6 @@
 "use client";
 
-import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DrawingStroke, StructuredDrawing, strokesToStructuredDrawing } from "./drawingCodec";
 import { requestHybridGuess } from "./hybridGuessEngine";
 import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
@@ -448,6 +448,11 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
   const [statuses, setStatuses] = useState<ProviderStatus>({ openai: false, anthropic: false, gemini: false });
   const [testing, setTesting] = useState(false);
   const [testMessage, setTestMessage] = useState("");
+  const [serviceUrl, setServiceUrl] = useState("https://api.openai.com/v1");
+  const [customModel, setCustomModel] = useState("gpt-4.1-mini");
+  const [apiKey, setApiKey] = useState("");
+  const [customConnected, setCustomConnected] = useState(false);
+  const [savingConnection, setSavingConnection] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -458,6 +463,15 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
         const next = { openai: false, anthropic: false, gemini: false };
         data.providers?.forEach((provider) => { next[provider.id] = provider.configured; });
         setStatuses(next);
+      })
+      .catch(() => undefined);
+    fetch("/api/model-connection")
+      .then((response) => response.json())
+      .then((data: { connected?: boolean; baseUrl?: string; model?: string }) => {
+        if (!active) return;
+        setCustomConnected(Boolean(data.connected));
+        if (data.baseUrl) setServiceUrl(data.baseUrl);
+        if (data.model) setCustomModel(data.model);
       })
       .catch(() => undefined);
     return () => { active = false; };
@@ -483,6 +497,29 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
     }
   }
 
+  async function saveCustomConnection(event: FormEvent) {
+    event.preventDefault();
+    setSavingConnection(true);
+    setTestMessage("");
+    try {
+      const response = await fetch("/api/model-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl: serviceUrl, model: customModel, apiKey }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Connection failed.");
+      setCustomConnected(true);
+      setApiKey("");
+      setTestMessage("Connected and saved for this browser session. Mimi will use this model first.");
+    } catch (error) {
+      setCustomConnected(false);
+      setTestMessage(error instanceof Error ? error.message : "Connection failed.");
+    } finally {
+      setSavingConnection(false);
+    }
+  }
+
   return (
     <div className="model-overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="model-center" role="dialog" aria-modal="true" aria-labelledby="model-center-title">
@@ -494,6 +531,19 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
           </div>
           <button className="close-button" type="button" onClick={onClose} aria-label="Close model center">×</button>
         </div>
+
+        <form className="custom-connection" onSubmit={saveCustomConnection}>
+          <div className="custom-connection-title">
+            <div><strong>连接模型</strong><small>填写兼容 OpenAI 格式的视觉模型服务</small></div>
+            <span className={customConnected ? "connection-badge ready" : "connection-badge"}>{customConnected ? "已连接" : "未连接"}</span>
+          </div>
+          <label>服务地址<input type="url" required value={serviceUrl} onChange={(event) => setServiceUrl(event.target.value)} placeholder="https://api.example.com/v1" /></label>
+          <label>模型名称<input required value={customModel} onChange={(event) => setCustomModel(event.target.value)} placeholder="vision-model-name" /></label>
+          <label>API Key<input type="password" required={!customConnected} value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="off" placeholder={customConnected ? "已安全保存；留空保持原密钥" : "sk-..."} /></label>
+          <button className="primary-button" disabled={savingConnection || !serviceUrl.trim() || !customModel.trim() || (!apiKey.trim() && !customConnected)} type="submit">{savingConnection ? "正在连接..." : "保存"}</button>
+        </form>
+
+        <div className="model-divider"><span>或使用网站已配置模型</span></div>
 
         <div className="provider-tabs" role="tablist" aria-label="AI providers">
           {modelProviders.map((item) => (
@@ -541,7 +591,7 @@ function ModelCenter({ selection, onChange, onClose }: { selection: ModelSelecti
           <button className="secondary-button" type="button" disabled={testing || !statuses[selection.provider]} onClick={testConnection}>{testing ? "Mimi is checking..." : "Test Connection"}</button>
           <button className="primary-button" type="button" onClick={onClose}>Use This Model</button>
         </div>
-        <p className="privacy-note">API keys stay on the server. If a model is unavailable, the game continues in fallback mode.</p>
+        <p className="privacy-note">API Key 会加密保存到 HttpOnly 会话，页面脚本无法读取；连接不可用时游戏仍会进入 fallback 模式。</p>
       </section>
     </div>
   );

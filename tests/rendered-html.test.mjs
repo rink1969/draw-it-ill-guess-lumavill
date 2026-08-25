@@ -38,12 +38,14 @@ test("server-renders the game invite", async () => {
 });
 
 test("keeps the full drawing game flow in source", async () => {
-  const [game, agent, hybrid, api, memoryApi, schema, gateway, providers, css, packageJson] = await Promise.all([
+  const [game, agent, hybrid, api, memoryApi, connectionApi, connectionVault, schema, gateway, providers, css, packageJson] = await Promise.all([
     readFile(new URL("../app/GameDemo.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/mockAgentService.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/hybridGuessEngine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/guess/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memories/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/model-connection/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/modelConnection.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/modelGateway.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/modelProviders.ts", import.meta.url), "utf8"),
@@ -87,6 +89,14 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(hybrid, /getFallbackGuess/);
   assert.match(hybrid, /isCorrectGuess/);
   assert.match(game, /AI Model Center/);
+  assert.match(game, /服务地址/);
+  assert.match(game, /模型名称/);
+  assert.match(game, /API Key/);
+  assert.match(game, /api\/model-connection/);
+  assert.match(connectionApi, /Set-Cookie/);
+  assert.match(connectionVault, /AES-GCM/);
+  assert.match(connectionVault, /HttpOnly/);
+  assert.match(gateway, /runCustomVisionGuess/);
   assert.match(hybrid, /modelSelection/);
   assert.match(gateway, /OPENAI_API_KEY/);
   assert.match(gateway, /ANTHROPIC_API_KEY/);
