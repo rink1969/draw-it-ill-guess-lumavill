@@ -1077,7 +1077,7 @@ function buildGuessLine(attempt: GuessAttempt, mood: Mood, round: number, locale
 function guessNote(attempt: GuessAttempt, hasHint: boolean, locale: Locale) {
   if (hasHint) return locale === "zh" ? "Mimi 把你的提示和画面仔细比较后才给出答案。" : "Mimi weighed your hint against the drawing before guessing.";
   if (attempt.source === "vision") return locale === "zh" ? "Mimi 是认真观察你的画后得出这个答案的。" : "Mimi spotted this from your drawing.";
-  return locale === "zh" ? "Mimi 正在使用备用直觉进行猜测。" : "Mimi is guessing from her cozy backup instincts.";
+  return locale === "zh" ? "Mimi正在猜测" : "Mimi is guessing";
 }
 
 function fillGuessLine(template: string, attempt: GuessAttempt) {
