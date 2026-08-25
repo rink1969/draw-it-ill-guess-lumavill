@@ -67,6 +67,10 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(game, /Save Memory/);
   assert.match(game, /fetch\("\/api\/memories"/);
   assert.match(game, /Saving\.\.\./);
+  assert.match(game, /Silver Ore/);
+  assert.match(game, /attemptCount <= 3/);
+  assert.match(game, /attemptCount <= 5/);
+  assert.match(game, /RewardPanel/);
   assert.match(memoryApi, /db\.insert\(memories\)/);
   assert.match(memoryApi, /saveKey/);
   assert.match(schema, /sqliteTable\("memories"/);

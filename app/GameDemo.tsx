@@ -15,6 +15,7 @@ type DrawingSubmission = {
 };
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 type MemoryCopy = { title: string; story: string };
+type GameReward = { type: "silver_ore" | "stone" | "none"; name: string; quantity: number; message: string };
 
 const brushSizes: Record<BrushSize, number> = { Small: 4, Medium: 9, Large: 16 };
 const colors = ["#25231d", "#e75f54", "#4c8bd8", "#f2c94c", "#6c9f49"];
@@ -143,6 +144,13 @@ const wordRevealLines = [
   "Make it mysterious, but not too mysterious.",
   "I will be watching with extremely serious eyes.",
 ];
+
+function getGameReward(solved: boolean, attemptCount: number): GameReward {
+  if (!solved) return { type: "none", name: "No material", quantity: 0, message: "No reward this time. Try another drawing!" };
+  if (attemptCount <= 3) return { type: "silver_ore", name: "Silver Ore", quantity: 1, message: "Quick teamwork! A shiny reward from LumaVill." };
+  if (attemptCount <= 5) return { type: "stone", name: "Stone", quantity: 1, message: "You solved it together and brought home a useful stone." };
+  return { type: "none", name: "No material", quantity: 0, message: "Case solved, but the material reward window has passed." };
+}
 
 export default function GameDemo() {
   const [gameState, setGameState] = useState<GameState>("INVITE");
@@ -863,8 +871,9 @@ function GuessScreen({
 }
 
 function ResultScreen({ word, drawing, attempts, solved, dialogue, onMemory }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean; dialogue: string; onMemory: () => void }) {
+  const reward = getGameReward(solved, attempts.length);
   useEffect(() => {
-    const timer = window.setTimeout(onMemory, 2400);
+    const timer = window.setTimeout(onMemory, 4200);
     return () => window.clearTimeout(timer);
   }, [onMemory]);
   return (
@@ -877,6 +886,7 @@ function ResultScreen({ word, drawing, attempts, solved, dialogue, onMemory }: {
       <div className="result-details">
         <strong>{word.word} {word.emoji}</strong>
         <GuessList attempts={attempts} />
+        <RewardPanel reward={reward} attemptCount={attempts.length} />
         <CompanionDialogue lines={[dialogue, solved ? randomItem(correctLines) : "I'm keeping this mystery for training my vibes."]} />
       </div>
     </div>
@@ -909,6 +919,7 @@ function MemoryScreen({ word, drawing, attempts, saveStatus, saveError, solved, 
 }
 
 function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean; title: string; story: string }) {
+  const reward = getGameReward(solved, attempts.length);
   return (
     <article className="memory-card">
       <img src={drawing} alt="Saved drawing thumbnail" />
@@ -919,9 +930,23 @@ function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: G
         <p>Mimi guessed:</p>
         <ul>{attempts.map((attempt, index) => <li key={`${attempt.guess}-${index}`}>{attempt.guess} {attempt.isCorrect ? "✅" : "❌"}</li>)}</ul>
         <strong>{solved ? `Mimi got it on try ${attempts.length}.` : "Mimi did not crack the case this time."}</strong>
+        <p className={`memory-reward reward-${reward.type}`}>{reward.quantity > 0 ? `Reward: ${reward.name} ×${reward.quantity}` : "Reward: No material"}</p>
         <time>Today</time>
       </div>
     </article>
+  );
+}
+
+function RewardPanel({ reward, attemptCount }: { reward: GameReward; attemptCount: number }) {
+  return (
+    <section className={`reward-panel reward-${reward.type}`} aria-label="Round reward">
+      <div className={`reward-icon ${reward.type}`} aria-hidden="true"><i /><i /><i /></div>
+      <div>
+        <span>ROUND REWARD · {attemptCount} {attemptCount === 1 ? "GUESS" : "GUESSES"}</span>
+        <h3>{reward.quantity > 0 ? `${reward.name} ×${reward.quantity}` : reward.name}</h3>
+        <p>{reward.message}</p>
+      </div>
+    </section>
   );
 }
 
