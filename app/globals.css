@@ -138,6 +138,7 @@ button {
 .model-center-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 18px; }
 .model-center-actions button:disabled { cursor: not-allowed; opacity: 0.5; }
 .privacy-note { margin-top: 15px; color: #8a7b5e; text-align: center; }
+.save-error { margin: 12px 0 0; color: #a3483f; font-size: 14px; font-weight: 900; text-align: center; }
 
 .progress-pills {
   display: flex;

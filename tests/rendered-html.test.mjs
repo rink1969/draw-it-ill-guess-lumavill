@@ -38,11 +38,13 @@ test("server-renders the game invite", async () => {
 });
 
 test("keeps the full drawing game flow in source", async () => {
-  const [game, agent, hybrid, api, gateway, providers, css, packageJson] = await Promise.all([
+  const [game, agent, hybrid, api, memoryApi, schema, gateway, providers, css, packageJson] = await Promise.all([
     readFile(new URL("../app/GameDemo.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/mockAgentService.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/hybridGuessEngine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/guess/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memories/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/modelGateway.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/modelProviders.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -63,6 +65,12 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(game, /thinking-preview/);
   assert.match(game, /scan-line/);
   assert.match(game, /Save Memory/);
+  assert.match(game, /fetch\("\/api\/memories"/);
+  assert.match(game, /Saving\.\.\./);
+  assert.match(memoryApi, /db\.insert\(memories\)/);
+  assert.match(memoryApi, /saveKey/);
+  assert.match(schema, /sqliteTable\("memories"/);
+  assert.match(schema, /idx_memories_save_key/);
   assert.match(game, /requestNextGuess/);
   assert.match(game, /gameDirector/);
   assert.match(game, /finalMissLines/);

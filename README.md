@@ -1,100 +1,91 @@
-# vinext-starter
+# Draw It, I'll Guess! · LumaVill
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+A cozy drawing-and-guessing mini game where the player draws a prompted word and Mimi, an AI crocodile companion, tries to recognize it. The experience combines real vision-model guesses with a lightweight game director, character dialogue, hints, and durable memory cards.
 
-## Prerequisites
+## What It Does
 
-- Node.js `>=22.13.0`
+- Picks from a 50+ word bank with categories, difficulty levels, aliases, and recent-word deduplication.
+- Captures the canvas as PNG plus structured SVG/ASCII drawing data.
+- Supports OpenAI, Anthropic Claude, and Google Gemini vision models.
+- Keeps the target word away from the vision model and judges correctness inside game logic.
+- Falls back to the local guess engine if a provider is missing, slow, or unavailable.
+- Lets the player confirm whether Mimi's guess is right.
+- Requests text hints after three misses and keeps guessing until the player confirms success.
+- Saves completed games as persistent Memory records in Cloudflare D1.
 
-## Quick Start
+## Game Flow
+
+```text
+Word reveal → Drawing canvas → Vision guess → Player confirms
+                                      ↓ wrong
+                              Up to three guesses
+                                      ↓
+                              Player gives a hint
+                                      ↓
+                             Guess until confirmed
+                                      ↓
+                             Save Memory to D1
+```
+
+## AI Model Center
+
+The `AI Model` button in the top-right corner opens the model center. It shows which providers are configured, lets the player select a supported model, and can run a connection test.
+
+| Provider | Environment variable | Included models |
+| --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | GPT-4.1 mini, GPT-4o mini, GPT-5 mini |
+| Anthropic | `ANTHROPIC_API_KEY` | Claude Sonnet 4.5, Claude Haiku |
+| Google | `GEMINI_API_KEY` | Gemini 2.5 Flash, Gemini 2.5 Pro |
+
+API keys are never returned to the browser. The client sends only the selected provider/model and drawing data to the project's own API routes.
+
+## Persistence
+
+Memory cards are stored in Cloudflare D1 through Drizzle ORM. A record contains the displayed memory title and story, target metadata, drawing image, guess history, result, selected provider/model, and creation time. A unique save key prevents accidental duplicate writes.
+
+The schema lives in `db/schema.ts`; generated migrations live in `drizzle/`.
+
+## Local Development
+
+Requirements: Node.js `>=22.13.0`.
 
 ```bash
 npm install
+npm run db:generate
 npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+Create a local `.env` when testing real providers:
+
+```dotenv
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+```
+
+Without a configured provider, the complete game remains playable through the fallback guess engine.
+
+## Validation
+
+```bash
 npm run build
+npm test
 ```
 
-This starter does not use `wrangler.jsonc`.
+`npm test` builds the app and checks the rendered invite, complete game flow, multi-model gateway, fallback behavior, and D1 memory route.
 
-## Included Shape
+## Main Project Areas
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+- `app/GameDemo.tsx`: game state, drawing UI, dialogue, model center, and memory save states.
+- `app/api/guess/route.ts`: target-blind vision guess endpoint.
+- `app/modelGateway.ts`: OpenAI, Claude, and Gemini adapters.
+- `app/hybridGuessEngine.ts`: real-model request with local fallback.
+- `app/api/memories/route.ts`: persistent Memory read/write endpoint.
+- `db/schema.ts`: Drizzle D1 schema.
+- `app/mockAgentService.ts`: word bank, aliases, answer normalization, and fallback guesses.
 
-## Workspace Auth Headers
+## Deployment
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+The project is a Vinext app configured for OpenAI Sites and Cloudflare Workers. `.openai/hosting.json` declares the logical `DB` binding. Sites provisions and applies the real D1 database and generated migrations during deployment; production API keys are managed as encrypted site secrets.

@@ -13,6 +13,8 @@ type DrawingSubmission = {
   image: string;
   structured: StructuredDrawing;
 };
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+type MemoryCopy = { title: string; story: string };
 
 const brushSizes: Record<BrushSize, number> = { Small: 4, Medium: 9, Large: 16 };
 const colors = ["#25231d", "#e75f54", "#4c8bd8", "#f2c94c", "#6c9f49"];
@@ -157,7 +159,9 @@ export default function GameDemo() {
   const [dialogue, setDialogue] = useState("Hey! Wanna play a drawing game with me?");
   const [userHints, setUserHints] = useState<string[]>([]);
   const [hintInput, setHintInput] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState("");
+  const [memorySaveKey, setMemorySaveKey] = useState("");
   const [solved, setSolved] = useState(false);
   const [modelSelection, setModelSelection] = useState<ModelSelection>(defaultModelSelection);
   const [modelCenterOpen, setModelCenterOpen] = useState(false);
@@ -222,7 +226,9 @@ export default function GameDemo() {
     setUserHints([]);
     setHintInput("");
     setCurrentAttempt(null);
-    setSaved(false);
+    setSaveStatus("idle");
+    setSaveError("");
+    setMemorySaveKey(globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
     setSolved(false);
     setMood("happy");
     setDialogue(randomItem(wordRevealLines));
@@ -270,7 +276,8 @@ export default function GameDemo() {
   function playAgain() {
     setGameState("INVITE");
     setMood("idle");
-    setSaved(false);
+    setSaveStatus("idle");
+    setSaveError("");
     setSolved(false);
     setDrawing("");
     setStructuredDrawing(null);
@@ -292,6 +299,38 @@ export default function GameDemo() {
     setHintInput("");
     setDialogue("Ooh. That clue changed the whole investigation.");
     window.setTimeout(() => void requestNextGuess(drawing, attempts, nextHints), 250);
+  }
+
+  async function saveMemory(copy: MemoryCopy) {
+    if (saveStatus === "saving" || saveStatus === "saved") return;
+    setSaveStatus("saving");
+    setSaveError("");
+    try {
+      const response = await fetch("/api/memories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saveKey: memorySaveKey || `${Date.now()}-${Math.random()}`,
+          title: copy.title,
+          story: copy.story,
+          targetWord: word.word,
+          emoji: word.emoji,
+          category: word.category,
+          difficulty: word.difficulty,
+          drawingDataUrl: drawing,
+          attempts,
+          solved,
+          modelSelection,
+        }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Save failed.");
+      setSaveStatus("saved");
+      setMood("happy");
+    } catch (error) {
+      setSaveStatus("error");
+      setSaveError(error instanceof Error ? error.message : "Mimi could not save this memory.");
+    }
   }
 
   return (
@@ -334,12 +373,10 @@ export default function GameDemo() {
             word={word}
             drawing={drawing}
             attempts={attempts}
-            saved={saved}
+            saveStatus={saveStatus}
+            saveError={saveError}
             solved={solved}
-            onSave={() => {
-              setSaved(true);
-              setMood("happy");
-            }}
+            onSave={saveMemory}
             onPlayAgain={playAgain}
           />
         )}
@@ -846,7 +883,10 @@ function ResultScreen({ word, drawing, attempts, solved, dialogue, onMemory }: {
   );
 }
 
-function MemoryScreen({ word, drawing, attempts, saved, solved, onSave, onPlayAgain }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; saved: boolean; solved: boolean; onSave: () => void; onPlayAgain: () => void }) {
+function MemoryScreen({ word, drawing, attempts, saveStatus, saveError, solved, onSave, onPlayAgain }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; saveStatus: SaveStatus; saveError: string; solved: boolean; onSave: (copy: MemoryCopy) => void; onPlayAgain: () => void }) {
+  const title = useMemo(() => randomItem(memoryTitles), []);
+  const story = useMemo(() => randomItem(memoryLines), []);
+  const saved = saveStatus === "saved";
   return (
     <div className="memory-layout">
       <div className="memory-heading">
@@ -854,26 +894,27 @@ function MemoryScreen({ word, drawing, attempts, saved, solved, onSave, onPlayAg
         <h2>Game Complete!</h2>
         <p>You made a new memory with Mimi.</p>
       </div>
-      <MemoryCard word={word} drawing={drawing} attempts={attempts} solved={solved} />
+      <MemoryCard word={word} drawing={drawing} attempts={attempts} solved={solved} title={title} story={story} />
       <CompanionDialogue lines={[saved ? "I'm definitely remembering this one." : "I'm keeping this.", solved ? randomItem(memoryLines) : "Unsolved mysteries are memories too. Very fancy."]} />
       <div className="ending-actions">
-        <button className="primary-button" type="button" onClick={onSave}>{saved ? "Saved ✓" : "Save Memory"}</button>
+        <button className="primary-button" disabled={saveStatus === "saving" || saved} type="button" onClick={() => onSave({ title, story })}>
+          {saveStatus === "saving" ? "Saving..." : saved ? "Saved ✓" : saveStatus === "error" ? "Try Saving Again" : "Save Memory"}
+        </button>
         <button className="secondary-button" type="button" onClick={onPlayAgain}>Play Again</button>
         <button className="plain-button warm" type="button" onClick={onPlayAgain}>Back to LumaVill</button>
       </div>
+      {saveError && <p className="save-error" role="alert">{saveError}</p>}
     </div>
   );
 }
 
-function MemoryCard({ word, drawing, attempts, solved }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean }) {
-  const title = useMemo(() => randomItem(memoryTitles), []);
-  const line = useMemo(() => randomItem(memoryLines), []);
+function MemoryCard({ word, drawing, attempts, solved, title, story }: { word: GameWordEntry; drawing: string; attempts: GuessAttempt[]; solved: boolean; title: string; story: string }) {
   return (
     <article className="memory-card">
       <img src={drawing} alt="Saved drawing thumbnail" />
       <div>
         <h3>{title}</h3>
-        <p>{line}</p>
+        <p>{story}</p>
         <p>You drew: <b>{word.emoji} {word.word}</b></p>
         <p>Mimi guessed:</p>
         <ul>{attempts.map((attempt, index) => <li key={`${attempt.guess}-${index}`}>{attempt.guess} {attempt.isCorrect ? "✅" : "❌"}</li>)}</ul>
