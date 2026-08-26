@@ -107,6 +107,11 @@ button {
   box-shadow: 0 8px 18px var(--shadow);
 }
 
+.sound-button.active {
+  background: #fff1b9;
+  box-shadow: 0 0 0 2px rgba(103, 139, 67, 0.2), 0 8px 18px var(--shadow);
+}
+
 .chrome-actions { justify-self: end; display: flex; align-items: center; gap: 10px; }
 .language-toggle { display: flex; align-items: center; padding: 3px; border: 1px solid rgba(91, 111, 55, 0.3); border-radius: 999px; background: rgba(255, 253, 247, 0.9); box-shadow: 0 6px 14px var(--shadow); }
 .language-toggle button { min-width: 34px; height: 32px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: #746b55; cursor: pointer; font-size: 12px; font-weight: 900; }

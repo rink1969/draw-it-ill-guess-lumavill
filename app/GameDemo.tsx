@@ -179,6 +179,8 @@ export default function GameDemo() {
   const [modelCenterOpen, setModelCenterOpen] = useState(false);
   const [modelConnected, setModelConnected] = useState(false);
   const [guessError, setGuessError] = useState("");
+  const [musicOn, setMusicOn] = useState(true);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
   const [sessionStats, setSessionStats] = useState<SessionStats>({ games: 0, totalAttempts: 0, silverOre: 0, stone: 0 });
   const pools = dialoguePools[locale];
 
@@ -187,6 +189,31 @@ export default function GameDemo() {
     const next = saved === "zh" || saved === "en" ? saved : navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
     setLocale(next);
   }, []);
+
+  useEffect(() => {
+    const enabled = window.localStorage.getItem("lumavill-music") !== "off";
+    setMusicOn(enabled);
+    const audio = musicRef.current;
+    if (!audio) return;
+    audio.volume = 0.28;
+    if (enabled) void audio.play().catch(() => undefined);
+
+    const beginOnFirstInteraction = () => {
+      if (enabled) void audio.play().catch(() => undefined);
+    };
+    window.addEventListener("pointerdown", beginOnFirstInteraction, { once: true });
+    return () => window.removeEventListener("pointerdown", beginOnFirstInteraction);
+  }, []);
+
+  function toggleMusic() {
+    const audio = musicRef.current;
+    const next = !musicOn;
+    setMusicOn(next);
+    window.localStorage.setItem("lumavill-music", next ? "on" : "off");
+    if (!audio) return;
+    if (next) void audio.play().catch(() => undefined);
+    else audio.pause();
+  }
 
   useEffect(() => {
     fetch("/api/model-connection")
@@ -376,6 +403,18 @@ export default function GameDemo() {
     window.setTimeout(() => void requestNextGuess(drawing, attempts, nextHints), 250);
   }
 
+  function resumeGameAfterReconnect() {
+    if (gameState !== "GUESSING" || !guessError || !drawing || thinking) return;
+    setModelCenterOpen(false);
+    setGuessError("");
+    setMood("thinking");
+    setDialogue(locale === "zh" ? "连接恢复了，我会保留刚才的线索重新认真看。" : "We're connected again. I'll keep the clues and take another careful look.");
+    window.setTimeout(
+      () => void requestNextGuess(drawing, attempts, userHints, structuredDrawing),
+      250,
+    );
+  }
+
   async function saveMemory(copy: MemoryCopy) {
     if (saveStatus === "saving" || saveStatus === "saved") return;
     setSaveStatus("saving");
@@ -411,13 +450,16 @@ export default function GameDemo() {
   return (
     <LocaleContext.Provider value={locale}>
     <main className={`game-shell lang-${locale}`}>
+      <audio ref={musicRef} src="/midday-in-the-plaza.mp3" autoPlay loop preload="auto" />
       <div className="room-backdrop" aria-hidden="true" />
       <GameChrome
         state={gameState}
         onBack={() => setGameState(sessionStats.games > 0 ? "SUMMARY" : "INVITE")}
         onOpenModels={() => setModelCenterOpen(true)}
         locale={locale}
+        musicOn={musicOn}
         onLocaleChange={changeLocale}
+        onToggleMusic={toggleMusic}
       />
       <section className={`stage state-${gameState.toLowerCase()}`}>
         {gameState === "INVITE" && <InviteScreen connected={modelConnected} onConnect={() => setModelCenterOpen(true)} onPlay={beginGame} mood={mood} />}
@@ -477,7 +519,11 @@ export default function GameDemo() {
         )}
       </section>
       {modelCenterOpen && (
-        <ModelCenter onClose={() => setModelCenterOpen(false)} onConnectionChange={setModelConnected} />
+        <ModelCenter
+          onClose={() => setModelCenterOpen(false)}
+          onConnected={resumeGameAfterReconnect}
+          onConnectionChange={setModelConnected}
+        />
       )}
     </main>
     </LocaleContext.Provider>
@@ -492,7 +538,23 @@ function gameDirector(attempt: GuessAttempt, word: GameWordEntry, round: number,
   return attempt;
 }
 
-function GameChrome({ state, onBack, onOpenModels, locale, onLocaleChange }: { state: GameState; onBack: () => void; onOpenModels: () => void; locale: Locale; onLocaleChange: (locale: Locale) => void }) {
+function GameChrome({
+  state,
+  onBack,
+  onOpenModels,
+  locale,
+  musicOn,
+  onLocaleChange,
+  onToggleMusic,
+}: {
+  state: GameState;
+  onBack: () => void;
+  onOpenModels: () => void;
+  locale: Locale;
+  musicOn: boolean;
+  onLocaleChange: (locale: Locale) => void;
+  onToggleMusic: () => void;
+}) {
   const active = state === "INVITE" || state === "WORD_REVEAL" || state === "DRAWING" ? "Draw" : state === "GUESSING" || state === "RESULT" ? "Guess" : "Memory";
   const steps = locale === "zh" ? [["Draw", "绘画"], ["Guess", "猜题"], ["Memory", "记忆"]] : [["Draw", "Draw"], ["Guess", "Guess"], ["Memory", "Memory"]];
   return (
@@ -513,13 +575,28 @@ function GameChrome({ state, onBack, onOpenModels, locale, onLocaleChange }: { s
           <button className={locale === "zh" ? "active" : ""} type="button" onClick={() => onLocaleChange("zh")}>中</button>
           <button className={locale === "en" ? "active" : ""} type="button" onClick={() => onLocaleChange("en")}>EN</button>
         </div>
-        <button className="sound-button" aria-label="Sound on" type="button">🔊</button>
+        <button
+          className={musicOn ? "sound-button active" : "sound-button"}
+          aria-label={locale === "zh" ? (musicOn ? "关闭背景音乐" : "播放背景音乐") : (musicOn ? "Turn off background music" : "Play background music")}
+          aria-pressed={musicOn}
+          title={locale === "zh" ? (musicOn ? "关闭背景音乐" : "播放背景音乐") : (musicOn ? "Turn off background music" : "Play background music")}
+          type="button"
+          onClick={onToggleMusic}
+        >{musicOn ? "🔊" : "🔇"}</button>
       </div>
     </header>
   );
 }
 
-function ModelCenter({ onClose, onConnectionChange }: { onClose: () => void; onConnectionChange: (connected: boolean) => void }) {
+function ModelCenter({
+  onClose,
+  onConnected,
+  onConnectionChange,
+}: {
+  onClose: () => void;
+  onConnected: () => void;
+  onConnectionChange: (connected: boolean) => void;
+}) {
   const locale = useLocale();
   const [testMessage, setTestMessage] = useState("");
   const [serviceUrl, setServiceUrl] = useState("https://api.openai.com/v1");
@@ -560,6 +637,7 @@ function ModelCenter({ onClose, onConnectionChange }: { onClose: () => void; onC
       if (!response.ok) throw new Error(data.error || (locale === "zh" ? "连接失败。" : "Connection failed."));
       setCustomConnected(true);
       onConnectionChange(true);
+      onConnected();
       setApiKey("");
       setTestMessage(locale === "zh" ? "已连接并安全保存。Kaka 会优先使用这个模型。" : "Connected and saved securely. Kaka will use this model first.");
     } catch (error) {

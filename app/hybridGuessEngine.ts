@@ -28,7 +28,8 @@ export async function requestHybridGuess({
   locale: Locale;
 }): Promise<GuessAttempt> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 4200);
+  // Vision providers often need extra time for image input or a cold start.
+  const timeout = window.setTimeout(() => controller.abort(), 30000);
 
   try {
     const response = await fetch("/api/guess", {

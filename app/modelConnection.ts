@@ -48,8 +48,12 @@ export function validateConnection(input: unknown): CustomModelConnection | null
 }
 
 async function connectionKey(request: Request) {
-  const isLocal = ["localhost", "127.0.0.1"].includes(new URL(request.url).hostname);
-  const secret = process.env.MODEL_CONNECTION_SECRET ?? (isLocal ? "lumavill-local-development-secret" : "");
+  const hostname = new URL(request.url).hostname;
+  const isLocal = ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(hostname);
+  const configuredSecret = process.env.MODEL_CONNECTION_SECRET?.trim();
+  const secret = configuredSecret || (process.env.NODE_ENV !== "production" || isLocal
+    ? "lumavill-local-development-secret"
+    : "");
   if (!secret) throw new Error("MODEL_CONNECTION_SECRET is not configured");
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
   return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
