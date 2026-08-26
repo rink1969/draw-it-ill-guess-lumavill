@@ -100,7 +100,13 @@ export function pickWord(isFirstRound: boolean): GameWordEntry {
   return picked;
 }
 
-export function getFallbackGuess(word: GameWordEntry, previousGuesses: string[], round: number, userHints: string[] = []): string {
+export function getFallbackGuess(
+  word: GameWordEntry,
+  previousGuesses: string[],
+  round: number,
+  userHints: string[] = [],
+  excludeAnswer = false,
+): string {
   const previous = previousGuesses.map(normalizeGuess);
   const normalizedHints = userHints.map(normalizeGuess).join(" ");
   const hintNamesAnswer = [word.word, ...word.aliases].some((alias) => normalizedHints.includes(normalizeGuess(alias)));
@@ -125,9 +131,17 @@ export function getFallbackGuess(word: GameWordEntry, previousGuesses: string[],
 
   const fresh = (shouldTryAnswer ? unique(candidates) : shuffle(unique(candidates)))
     .filter((guess) => !previous.includes(normalizeGuess(guess)))
+    .filter((guess) => !excludeAnswer || !isCorrectGuess(guess, word))
     .filter((guess) => round >= 3 || normalizeGuess(guess) !== normalizeGuess(word.word));
 
-  return fresh[0] ?? word.fallbackGuesses.find((guess) => !previous.includes(normalizeGuess(guess))) ?? word.word;
+  return (
+    fresh[0] ??
+    word.fallbackGuesses.find(
+      (guess) => !previous.includes(normalizeGuess(guess)) && (!excludeAnswer || !isCorrectGuess(guess, word)),
+    ) ??
+    sameCategoryWords.find((guess) => !previous.includes(normalizeGuess(guess))) ??
+    word.word
+  );
 }
 
 export function isCorrectGuess(guess: string, target: GameWordEntry): boolean {

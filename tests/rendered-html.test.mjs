@@ -92,7 +92,9 @@ test("keeps the full drawing game flow in source", async () => {
   assert.match(agent, /aliases:/);
   assert.ok((agent.match(/word:/g) ?? []).length >= 50);
   assert.match(hybrid, /fetch\("\/api\/guess"/);
-  assert.doesNotMatch(hybrid, /getFallbackGuess/);
+  assert.match(hybrid, /getFallbackGuess\(targetWord, previousGuesses, round, userHints, true\)/);
+  assert.match(hybrid, /error\.message === "connection_missing"/);
+  assert.match(agent, /!excludeAnswer \|\| !isCorrectGuess\(guess, word\)/);
   assert.match(game, /if \(!modelConnected\)/);
   assert.match(game, /重新连接模型/);
   assert.match(hybrid, /isCorrectGuess/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { GameWordEntry, GuessAttempt, isCorrectGuess } from "./mockAgentService";
+import { GameWordEntry, GuessAttempt, getFallbackGuess, isCorrectGuess } from "./mockAgentService";
 import { StructuredDrawing } from "./drawingCodec";
 import { canonicalGuess, Locale, localizeGuess } from "./i18n";
 
@@ -52,6 +52,16 @@ export async function requestHybridGuess({
       reaction: data.reaction,
       source: "vision",
       isCorrect: isCorrectGuess(canonicalGuess(guess), targetWord),
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === "connection_missing") throw error;
+    const fallbackGuess = getFallbackGuess(targetWord, previousGuesses, round, userHints, true);
+    return {
+      guess: localizeGuess(fallbackGuess, locale),
+      confidence: 0.28 + Math.random() * 0.28,
+      reaction: locale === "zh" ? "我先顺着轮廓大胆猜一个。" : "I'll make a bold guess from the silhouette.",
+      source: "fallback",
+      isCorrect: isCorrectGuess(canonicalGuess(fallbackGuess), targetWord),
     };
   } finally {
     window.clearTimeout(timeout);
