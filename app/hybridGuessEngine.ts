@@ -29,7 +29,7 @@ export async function requestHybridGuess({
 }): Promise<GuessAttempt> {
   const controller = new AbortController();
   // Vision providers often need extra time for image input or a cold start.
-  const timeout = window.setTimeout(() => controller.abort(), 30000);
+  const timeout = window.setTimeout(() => controller.abort(), 60000);
 
   try {
     const response = await fetch("/api/guess", {
@@ -39,7 +39,9 @@ export async function requestHybridGuess({
       body: JSON.stringify({ canvasImage, structuredDrawing, previousGuesses, userHints, round, locale }),
     });
 
-    if (!response.ok) throw new Error("Kaka blinked at the drawing for too long.");
+    if (!response.ok) {
+      throw new Error(response.status === 503 ? "connection_missing" : "guess_temporarily_failed");
+    }
     const data = (await response.json()) as VisionGuessResponse;
     const guess = data.guess?.trim();
     if (!guess) throw new Error("Kaka made a mystery noise instead of a guess.");

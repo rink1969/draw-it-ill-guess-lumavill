@@ -179,6 +179,7 @@ export default function GameDemo() {
   const [modelCenterOpen, setModelCenterOpen] = useState(false);
   const [modelConnected, setModelConnected] = useState(false);
   const [guessError, setGuessError] = useState("");
+  const [guessNeedsReconnect, setGuessNeedsReconnect] = useState(false);
   const [musicOn, setMusicOn] = useState(true);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const [sessionStats, setSessionStats] = useState<SessionStats>({ games: 0, totalAttempts: 0, silverOre: 0, stone: 0 });
@@ -250,6 +251,7 @@ export default function GameDemo() {
 
     const minimumThinkTime = delay(hasHint ? 2450 : 1550);
     setGuessError("");
+    setGuessNeedsReconnect(false);
     try {
       const attempt = await requestHybridGuess({
         canvasImage,
@@ -267,12 +269,18 @@ export default function GameDemo() {
       setCurrentAttempt(directedAttempt);
       setMood(nextMood);
       setDialogue(buildGuessLine(directedAttempt, nextMood, round, locale));
-    } catch {
+    } catch (error) {
       await minimumThinkTime;
-      setModelConnected(false);
+      const needsReconnect = error instanceof Error && error.message === "connection_missing";
+      setGuessNeedsReconnect(needsReconnect);
+      if (needsReconnect) setModelConnected(false);
       setMood("oops");
-      setGuessError(locale === "zh" ? "模型连接已中断，请重新连接后继续。" : "The model connection was interrupted. Reconnect to continue.");
-      setDialogue(locale === "zh" ? "我现在看不到画面了，重新连接模型后我再认真猜。" : "I can't see the drawing right now. Reconnect the model and I'll look again.");
+      setGuessError(needsReconnect
+        ? (locale === "zh" ? "模型会话已失效，请重新连接后继续。" : "The model session expired. Reconnect to continue.")
+        : (locale === "zh" ? "这次没有收到模型的回答，画面和进度都已保留。" : "The model did not answer this time. Your drawing and progress are safe."));
+      setDialogue(needsReconnect
+        ? (locale === "zh" ? "我现在看不到画面了，重新连接模型后我再认真猜。" : "I can't see the drawing right now. Reconnect the model and I'll look again.")
+        : (locale === "zh" ? "刚才的思路被打断了，但我还记得这幅画。让我再看一次。" : "That thought got interrupted, but I still remember the drawing. Let me look again."));
     } finally {
       setThinking(false);
       setHintThinking(false);
@@ -308,6 +316,7 @@ export default function GameDemo() {
     setHintInput("");
     setCurrentAttempt(null);
     setGuessError("");
+    setGuessNeedsReconnect(false);
     setSaveStatus("idle");
     setSaveError("");
     setMemorySaveKey(globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
@@ -415,6 +424,13 @@ export default function GameDemo() {
     );
   }
 
+  function retryCurrentGuess() {
+    if (gameState !== "GUESSING" || !drawing || thinking) return;
+    setGuessError("");
+    setGuessNeedsReconnect(false);
+    void requestNextGuess(drawing, attempts, userHints, structuredDrawing);
+  }
+
   async function saveMemory(copy: MemoryCopy) {
     if (saveStatus === "saving" || saveStatus === "saved") return;
     setSaveStatus("saving");
@@ -477,10 +493,12 @@ export default function GameDemo() {
             mood={mood}
             needsHint={needsHint}
             guessError={guessError}
+            guessNeedsReconnect={guessNeedsReconnect}
             onAnswer={handleGuessAnswer}
             onHintInput={setHintInput}
             onSubmitHint={submitHint}
             onReconnect={() => setModelCenterOpen(true)}
+            onRetry={retryCurrentGuess}
             userHints={userHints}
           />
         )}
@@ -928,6 +946,7 @@ function GuessScreen({
   dialogue,
   drawing,
   guessError,
+  guessNeedsReconnect,
   hintInput,
   isThinking,
   isUsingHint,
@@ -936,6 +955,7 @@ function GuessScreen({
   onAnswer,
   onHintInput,
   onReconnect,
+  onRetry,
   onSubmitHint,
   userHints,
 }: {
@@ -944,6 +964,7 @@ function GuessScreen({
   dialogue: string;
   drawing: string;
   guessError: string;
+  guessNeedsReconnect: boolean;
   hintInput: string;
   isThinking: boolean;
   isUsingHint: boolean;
@@ -952,6 +973,7 @@ function GuessScreen({
   onAnswer: (playerSaysCorrect: boolean) => void;
   onHintInput: (value: string) => void;
   onReconnect: () => void;
+  onRetry: () => void;
   onSubmitHint: () => void;
   userHints: string[];
 }) {
@@ -969,7 +991,11 @@ function GuessScreen({
         {guessError ? (
           <div className="hint-panel connection-error">
             <p>{guessError}</p>
-            <button className="primary-button" type="button" onClick={onReconnect}>{locale === "zh" ? "重新连接模型" : "Reconnect Model"}</button>
+            <button className="primary-button" type="button" onClick={guessNeedsReconnect ? onReconnect : onRetry}>
+              {guessNeedsReconnect
+                ? (locale === "zh" ? "重新连接模型" : "Reconnect Model")
+                : (locale === "zh" ? "让 Kaka 再猜一次" : "Let Kaka Try Again")}
+            </button>
           </div>
         ) : needsHint ? (
           <div className="hint-panel">

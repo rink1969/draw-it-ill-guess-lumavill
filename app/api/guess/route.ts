@@ -1,6 +1,8 @@
 import { readConnection } from "../../modelConnection";
 import { runCustomVisionGuess } from "../../modelGateway";
 
+export const maxDuration = 60;
+
 type GuessRequest = {
   canvasImage?: string;
   structuredDrawing?: {
