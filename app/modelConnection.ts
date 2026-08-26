@@ -1,14 +1,19 @@
 export type CustomModelConnection = { baseUrl: string; model: string; apiKey: string };
 
 const cookieName = "mimi_model_connection";
+const sessionKeyCookieName = "mimi_model_session_key";
 
 export async function sealConnection(connection: CustomModelConnection, request: Request) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await connectionKey(request);
+  const { key, sessionKey } = await connectionKey(request, true);
   const plain = new TextEncoder().encode(JSON.stringify(connection));
   const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain));
   const value = toBase64Url(join(iv, encrypted));
-  return `${cookieName}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${new URL(request.url).protocol === "https:" ? "; Secure" : ""}`;
+  const attributes = cookieAttributes(request, 86400);
+  return [
+    `${cookieName}=${value}; ${attributes}`,
+    ...(sessionKey ? [`${sessionKeyCookieName}=${sessionKey}; ${attributes}`] : []),
+  ];
 }
 
 export async function readConnection(request: Request): Promise<CustomModelConnection | null> {
@@ -18,7 +23,8 @@ export async function readConnection(request: Request): Promise<CustomModelConne
     const bytes = fromBase64Url(value);
     const iv = bytes.slice(0, 12);
     const encrypted = bytes.slice(12);
-    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, await connectionKey(request), encrypted);
+    const { key } = await connectionKey(request, false);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
     const parsed = JSON.parse(new TextDecoder().decode(plain)) as CustomModelConnection;
     return validateConnection(parsed);
   } catch {
@@ -27,7 +33,11 @@ export async function readConnection(request: Request): Promise<CustomModelConne
 }
 
 export function clearConnectionCookie(request: Request) {
-  return `${cookieName}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${new URL(request.url).protocol === "https:" ? "; Secure" : ""}`;
+  const attributes = cookieAttributes(request, 0);
+  return [
+    `${cookieName}=; ${attributes}`,
+    `${sessionKeyCookieName}=; ${attributes}`,
+  ];
 }
 
 export function validateConnection(input: unknown): CustomModelConnection | null {
@@ -47,16 +57,36 @@ export function validateConnection(input: unknown): CustomModelConnection | null
   }
 }
 
-async function connectionKey(request: Request) {
+async function connectionKey(request: Request, createSessionKey: boolean) {
   const hostname = new URL(request.url).hostname;
   const isLocal = ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(hostname);
   const configuredSecret = process.env.MODEL_CONNECTION_SECRET?.trim();
-  const secret = configuredSecret || (process.env.NODE_ENV !== "production" || isLocal
+  let sessionKey = cookieValue(request, sessionKeyCookieName);
+  let keySecret = configuredSecret || (process.env.NODE_ENV !== "production" || isLocal
     ? "lumavill-local-development-secret"
-    : "");
-  if (!secret) throw new Error("MODEL_CONNECTION_SECRET is not configured");
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
-  return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
+    : sessionKey || "");
+  let shouldSetSessionKey = false;
+  if (!keySecret && createSessionKey) {
+    sessionKey = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+    keySecret = sessionKey;
+    shouldSetSessionKey = true;
+  }
+  if (!keySecret) throw new Error("Model connection session key is unavailable");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(keySecret));
+  const key = await crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
+  return { key, sessionKey: shouldSetSessionKey ? sessionKey : "" };
+}
+
+function cookieValue(request: Request, name: string) {
+  return request.headers.get("cookie")
+    ?.split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${name}=`))
+    ?.slice(name.length + 1) ?? "";
+}
+
+function cookieAttributes(request: Request, maxAge: number) {
+  return `HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${new URL(request.url).protocol === "https:" ? "; Secure" : ""}`;
 }
 
 function join(first: Uint8Array, second: Uint8Array) {

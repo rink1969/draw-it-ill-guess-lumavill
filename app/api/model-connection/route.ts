@@ -14,7 +14,9 @@ export async function POST(request: Request) {
   if (!connection) return Response.json({ error: zh ? "请完整填写服务地址、模型名称和 API Key。" : "Please complete the service URL, model name, and API Key." }, { status: 400 });
   try {
     await testCustomModelConnection(connection);
-    return Response.json({ connected: true, baseUrl: connection.baseUrl, model: connection.model }, { headers: { "Set-Cookie": await sealConnection(connection, request) } });
+    const headers = new Headers();
+    for (const cookie of await sealConnection(connection, request)) headers.append("Set-Cookie", cookie);
+    return Response.json({ connected: true, baseUrl: connection.baseUrl, model: connection.model }, { headers });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "";
     const message = detail.includes("MODEL_CONNECTION_SECRET")
@@ -27,5 +29,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  return Response.json({ connected: false }, { headers: { "Set-Cookie": clearConnectionCookie(request) } });
+  const headers = new Headers();
+  for (const cookie of clearConnectionCookie(request)) headers.append("Set-Cookie", cookie);
+  return Response.json({ connected: false }, { headers });
 }
