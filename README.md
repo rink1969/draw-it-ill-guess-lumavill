@@ -12,7 +12,7 @@ A cozy drawing-and-guessing mini game where the player draws a prompted word and
 - Lets the player confirm whether Kaka's guess is right.
 - Requests text hints after three misses and continues for up to eight guesses.
 - Respects the AI's original guesses in rounds 1–5; only round 6 has a 28% Game Director correction chance. If all eight attempts miss, the round settles without a material reward.
-- Saves completed games as persistent Memory records in Cloudflare D1.
+- Saves completed games as persistent Memory cards in the browser's localStorage.
 - Awards one Silver Ore when Kaka succeeds within three guesses, or one Stone within five guesses.
 - Shows a daily partner summary when leaving, including completed questions, rapport, collected materials, and relationship progress.
 
@@ -27,22 +27,20 @@ Word reveal → Drawing canvas → Vision guess → Player confirms
                                       ↓
                              Guess until confirmed
                                       ↓
-                             Save Memory to D1
+                             Save Memory (localStorage)
 ```
 
 ## AI Model Center
 
-The `连接模型` button in the top-right corner opens the model center. Visitors connect their own OpenAI-compatible vision service by entering its service URL, model name, and API Key, then pressing Save. The connection is tested immediately and stored in an encrypted HttpOnly session cookie, so the page cannot read the key back. The website does not include or provide a model of its own.
+The `连接模型` button in the top-right corner opens the model center. Visitors connect their own OpenAI-compatible vision service by entering its service URL, model name, and API Key, then pressing Save. The connection is tested immediately and stored in the browser's localStorage (plain text; see the note below). The website does not include or provide a model of its own.
 
-Set `MODEL_CONNECTION_SECRET` on the server to a long random value before enabling visitor connections in production. Localhost uses a development-only secret automatically.
+Security note: the API Key is written in plain text to the browser's localStorage, so it is readable by any script on the page (XSS risk). Disconnect and clear it when sharing this browser.
 
 API keys are never returned to page scripts. If no visitor model is connected, the complete game remains playable through the local fallback guess engine.
 
 ## Persistence
 
-Memory cards are stored in Cloudflare D1 through Drizzle ORM. A record contains the displayed memory title and story, target metadata, drawing image, guess history, result, selected provider/model, and creation time. A unique save key prevents accidental duplicate writes.
-
-The schema lives in `db/schema.ts`; generated migrations live in `drizzle/`.
+Memory cards are stored in the browser's localStorage (key `lumavill-memories`, capped at the first 20 records to stay within storage limits). A record contains the displayed memory title and story, target metadata, drawing image, guess history, result, selected provider/model, and creation time. A unique save key prevents accidental duplicate writes.
 
 ## Local Development
 
@@ -50,17 +48,13 @@ Requirements: Node.js `>=22.13.0`.
 
 ```bash
 npm install
-npm run db:generate
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Create a local `.env` when testing real providers:
-
-```dotenv
-MODEL_CONNECTION_SECRET=
-```
+No server or environment secrets are required — the model connection lives
+entirely in the browser's localStorage.
 
 Without a configured provider, the complete game remains playable through the fallback guess engine.
 
@@ -68,21 +62,19 @@ Without a configured provider, the complete game remains playable through the fa
 
 ```bash
 npm run build
-npm test
 ```
 
-`npm test` builds the app and checks the rendered invite, complete game flow, multi-model gateway, fallback behavior, and D1 memory route.
+`npm run build` produces the static site in `./out`; serve it with `npm start`.
 
 ## Main Project Areas
 
 - `app/GameDemo.tsx`: game state, drawing UI, dialogue, model center, and memory save states.
-- `app/api/guess/route.ts`: target-blind vision guess endpoint.
-- `app/modelGateway.ts`: OpenAI, Claude, and Gemini adapters.
-- `app/hybridGuessEngine.ts`: real-model request with local fallback.
-- `app/api/memories/route.ts`: persistent Memory read/write endpoint.
-- `db/schema.ts`: Drizzle D1 schema.
+- `app/modelGateway.ts`: OpenAI, Claude, and Gemini vision adapters + prompt builder.
+- `app/hybridGuessEngine.ts`: real-model request (browser connects directly) with local fallback.
+- `app/memoryStore.ts`: localStorage-backed Memory read/write with saveKey dedupe.
+- `app/modelConnection.ts`: localStorage connection storage with SSRF-safe validation.
 - `app/mockAgentService.ts`: word bank, aliases, answer normalization, and fallback guesses.
 
 ## Deployment
 
-The project is a Vinext app configured for OpenAI Sites and Cloudflare Workers. `.openai/hosting.json` declares the logical `DB` binding. Sites provisions and applies the real D1 database and generated migrations during deployment; production API keys are managed as encrypted site secrets.
+This project is a static Next.js export (no backend server). All game state — the model connection, Memory cards, and recent-word history — lives in the browser's localStorage. To deploy, publish the `./out` folder to any static host.

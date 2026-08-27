@@ -5,6 +5,9 @@ import { DrawingStroke, StructuredDrawing, strokesToStructuredDrawing } from "./
 import { requestHybridGuess } from "./hybridGuessEngine";
 import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
 import { categoryName, dialoguePools, difficultyName, Locale, localizeGuess, wordName } from "./i18n";
+import { readConnection, saveConnection, validateConnection } from "./modelConnection";
+import { saveMemory as saveMemoryEntry } from "./memoryStore";
+import { testCustomModelConnection } from "./modelGateway";
 
 type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY" | "SUMMARY";
 type Mood = "idle" | "thinking" | "happy" | "oops" | "dramatic" | "playful" | "confident";
@@ -217,15 +220,7 @@ export default function GameDemo() {
   }
 
   useEffect(() => {
-    fetch("/api/model-connection")
-      .then((response) => response.ok ? response.json() : { connected: false })
-      .then((data: unknown) => {
-        const connected = typeof data === "object" && data !== null && "connected" in data
-          ? Boolean(data.connected)
-          : false;
-        setModelConnected(connected);
-      })
-      .catch(() => setModelConnected(false));
+    setModelConnected(readConnection() !== null);
   }, []);
 
   function changeLocale(next: Locale) {
@@ -436,25 +431,22 @@ export default function GameDemo() {
     setSaveStatus("saving");
     setSaveError("");
     try {
-      const response = await fetch("/api/memories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          saveKey: memorySaveKey || `${Date.now()}-${Math.random()}`,
-          title: copy.title,
-          story: copy.story,
-          targetWord: word.word,
-          emoji: word.emoji,
-          category: word.category,
-          difficulty: word.difficulty,
-          drawingDataUrl: drawing,
-          attempts,
-          solved,
-          locale,
-        }),
+      const connection = readConnection();
+      const result = saveMemoryEntry({
+        saveKey: memorySaveKey || `${Date.now()}-${Math.random()}`,
+        title: copy.title,
+        story: copy.story,
+        targetWord: word.word,
+        emoji: word.emoji,
+        category: word.category,
+        difficulty: word.difficulty,
+        drawingDataUrl: drawing,
+        attempts,
+        solved,
+        provider: connection ? "visitor" : "local-fallback",
+        model: connection?.model ?? "local-fallback",
       });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error || (locale === "zh" ? "保存失败。" : "Save failed."));
+      if (!result.ok) throw new Error(result.error || (locale === "zh" ? "保存失败。" : "Save failed."));
       setSaveStatus("saved");
       setMood("happy");
     } catch (error) {
@@ -624,21 +616,13 @@ function ModelCenter({
   const [savingConnection, setSavingConnection] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    fetch("/api/model-connection")
-      .then((response) => response.json())
-      .then((value: unknown) => {
-        if (!active) return;
-        const data = typeof value === "object" && value !== null
-          ? value as { connected?: boolean; baseUrl?: string; model?: string }
-          : {};
-        setCustomConnected(Boolean(data.connected));
-        onConnectionChange(Boolean(data.connected));
-        if (data.baseUrl) setServiceUrl(data.baseUrl);
-        if (data.model) setCustomModel(data.model);
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
+    const connection = readConnection();
+    setCustomConnected(connection !== null);
+    onConnectionChange(connection !== null);
+    if (connection) {
+      setServiceUrl(connection.baseUrl);
+      setCustomModel(connection.model);
+    }
   }, [onConnectionChange]);
 
   async function saveCustomConnection(event: FormEvent) {
@@ -646,18 +630,18 @@ function ModelCenter({
     setSavingConnection(true);
     setTestMessage("");
     try {
-      const response = await fetch("/api/model-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl: serviceUrl, model: customModel, apiKey, locale }),
-      });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error || (locale === "zh" ? "连接失败。" : "Connection failed."));
+      const validated = validateConnection({ baseUrl: serviceUrl, model: customModel, apiKey });
+      if (!validated) {
+        setTestMessage(locale === "zh" ? "无法连接，请检查服务地址、模型名称和 API Key。" : "Could not connect. Check the address, model, and API Key.");
+        return;
+      }
+      await testCustomModelConnection(validated);
+      saveConnection(validated);
       setCustomConnected(true);
       onConnectionChange(true);
       onConnected();
       setApiKey("");
-      setTestMessage(locale === "zh" ? "已连接并安全保存。Kaka 会优先使用这个模型。" : "Connected and saved securely. Kaka will use this model first.");
+      setTestMessage(locale === "zh" ? "已连接并保存到本地。Kaka 会优先使用这个模型。" : "Connected and saved locally. Kaka will use this model first.");
     } catch (error) {
       setCustomConnected(false);
       onConnectionChange(false);
@@ -691,7 +675,7 @@ function ModelCenter({
         </form>
 
         {testMessage && <p className="test-message" aria-live="polite">{testMessage}</p>}
-        <p className="privacy-note">{locale === "zh" ? "API Key 会加密保存到 HttpOnly 会话，页面脚本无法读取。连接成功后才能开始游戏。" : "Your API Key is encrypted in an HttpOnly session and cannot be read by page scripts. Connect successfully before starting the game."}</p>
+        <p className="privacy-note">{locale === "zh" ? "API Key 会明文保存到浏览器 localStorage，仅本机读取。共享或离开此浏览器时请断开连接。" : "Your API Key is saved in plain text in the browser localStorage and is read only locally. Disconnect when sharing this browser or leaving the machine."}</p>
       </section>
     </div>
   );

@@ -1,14 +1,8 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = process.env.VERCEL === "1"
-  ? {
-      turbopack: {
-        root: process.cwd(),
-        resolveAlias: {
-          "cloudflare:workers": "./db/vercel-env.ts",
-        },
-      },
-    }
-  : {};
+const nextConfig: NextConfig = {
+  // Pure frontend: produce static HTML/JS/CSS in ./out served by any static host.
+  output: "export",
+};
 
 export default nextConfig;

@@ -3,6 +3,8 @@
 import { GameWordEntry, GuessAttempt, getFallbackGuess, isCorrectGuess } from "./mockAgentService";
 import { StructuredDrawing } from "./drawingCodec";
 import { canonicalGuess, Locale, localizeGuess } from "./i18n";
+import { readConnection } from "./modelConnection";
+import { buildVisionPrompt, runCustomVisionGuess } from "./modelGateway";
 
 type VisionGuessResponse = {
   guess?: string;
@@ -10,6 +12,10 @@ type VisionGuessResponse = {
   reaction?: string;
 };
 
+// Drive a single guessing round. When the player has not connected their own
+// vision model we bail with "connection_missing" so the UI can ask them to
+// reconnect. Otherwise a failed/failed-to-reach model degrades gracefully to a
+// pure-locale fallback guess so the game is always playable.
 export async function requestHybridGuess({
   canvasImage,
   structuredDrawing,
@@ -27,34 +33,26 @@ export async function requestHybridGuess({
   targetWord: GameWordEntry;
   locale: Locale;
 }): Promise<GuessAttempt> {
+  const connection = readConnection();
+  if (!connection) throw new Error("connection_missing");
+
   const controller = new AbortController();
   // Vision providers often need extra time for image input or a cold start.
   const timeout = window.setTimeout(() => controller.abort(), 60000);
 
   try {
-    const response = await fetch("/api/guess", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({ canvasImage, structuredDrawing, previousGuesses, userHints, round, locale }),
-    });
-
-    if (!response.ok) {
-      throw new Error(response.status === 503 ? "connection_missing" : "guess_temporarily_failed");
-    }
-    const data = (await response.json()) as VisionGuessResponse;
-    const guess = data.guess?.trim();
-    if (!guess) throw new Error("Kaka made a mystery noise instead of a guess.");
-
+    const prompt = buildVisionPrompt({ round, previousGuesses, userHints, structuredDrawing, locale });
+    const { guess, confidence, reaction } = await runCustomVisionGuess(connection, prompt, canvasImage);
     return {
       guess: localizeGuess(guess, locale),
-      confidence: clampConfidence(data.confidence),
-      reaction: data.reaction,
+      confidence: clampConfidence(confidence),
+      reaction,
       source: "vision",
       isCorrect: isCorrectGuess(canonicalGuess(guess), targetWord),
     };
   } catch (error) {
-    if (error instanceof Error && error.message === "connection_missing") throw error;
+    // Any failure reaching/reading the connected model (CORS, network, bad key,
+    // empty response, ...) falls back to a local guess so play continues.
     const fallbackGuess = getFallbackGuess(targetWord, previousGuesses, round, userHints, true);
     return {
       guess: localizeGuess(fallbackGuess, locale),
