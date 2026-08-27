@@ -31,6 +31,9 @@ jobs:
         run: npm ci
 
       - name: Build static export
+        env:
+          # GitHub Pages serves a project site under <repo>/, so prefix all assets.
+          BASE_PATH: draw-it-ill-guess-lumavill
         run: npm run build
 
       - name: Upload Pages artifact

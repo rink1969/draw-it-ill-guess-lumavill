@@ -77,4 +77,14 @@ npm run build
 
 ## Deployment
 
-This project is a static Next.js export (no backend server). All game state — the model connection, Memory cards, and recent-word history — lives in the browser's localStorage. To deploy, publish the `./out` folder to any static host.
+This project is a static Next.js export (no backend server). All game state — the model connection, Memory cards, and recent-word history — lives in the browser's localStorage.
+
+### GitHub Pages
+
+`.github/workflows/deploy.yml` builds the static export on push to `main` and publishes `./out` to GitHub Pages. It sets `BASE_PATH` to the repository name at build time so every asset link is prefixed for the GitHub Pages project-site subpath (`https://<user>.github.io/<repo>/`).
+
+> GitHub Pages must be enabled for the repo (Settings → Pages) with the `github-pages` environment using the Actions source. This cannot be done through the API.
+
+### Any static host
+
+Publish the `./out` folder to any static host. When served from the domain root, no configuration is needed. When served under a subpath, set `BASE_PATH` to that subpath (no leading or trailing slash) when building; see `next.config.ts` and `app/basePath.ts`.

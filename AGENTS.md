@@ -138,7 +138,8 @@ SUMMARY: 展示场次/亲密度/收集材料/关系进度
 
 ## 环境变量
 
-- **无需任何环境变量**。模型连接、记忆、语言/音乐偏好全部存于浏览器 `localStorage`，没有服务端密钥需要配置。
+- **本地开发无需任何环境变量**。模型连接、记忆、语言/音乐偏好全部存于浏览器 `localStorage`，没有服务端密钥需要配置。
+- **GitHub Pages 部署**：`.github/workflows/deploy.yml` 在构建时设置 `BASE_PATH`（仓库名），让静态导出的资源链接指向项目站点子路径；本地 `npm start` 不设置该变量，资源保持根路径。详见 `next.config.ts` 与 `app/basePath.ts`。
 
 ---
 

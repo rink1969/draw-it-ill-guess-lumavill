@@ -8,6 +8,7 @@ import { categoryName, dialoguePools, difficultyName, Locale, localizeGuess, wor
 import { readConnection, saveConnection, validateConnection } from "./modelConnection";
 import { saveMemory as saveMemoryEntry } from "./memoryStore";
 import { testCustomModelConnection } from "./modelGateway";
+import { asset } from "./basePath";
 
 type GameState = "INVITE" | "WORD_REVEAL" | "DRAWING" | "GUESSING" | "RESULT" | "MEMORY" | "SUMMARY";
 type Mood = "idle" | "thinking" | "happy" | "oops" | "dramatic" | "playful" | "confident";
@@ -458,7 +459,7 @@ export default function GameDemo() {
   return (
     <LocaleContext.Provider value={locale}>
     <main className={`game-shell lang-${locale}`}>
-      <audio ref={musicRef} src="/midday-in-the-plaza.mp3" autoPlay loop preload="auto" />
+      <audio ref={musicRef} src={asset("/midday-in-the-plaza.mp3")} autoPlay loop preload="auto" />
       <div className="room-backdrop" aria-hidden="true" />
       <GameChrome
         state={gameState}
@@ -1182,7 +1183,7 @@ function CompanionAvatar({ mood, compact = false }: { mood: Mood; compact?: bool
   const locale = useLocale();
   return (
     <div className={`avatar-wrap ${compact ? "compact" : ""} mood-${mood}`} aria-label="Kaka">
-      <img src="/mimi-gator.png" alt={locale === "zh" ? "你的绘画伙伴 Kaka" : "Kaka, your playful drawing partner"} />
+      <img src={asset("/mimi-gator.png")} alt={locale === "zh" ? "你的绘画伙伴 Kaka" : "Kaka, your playful drawing partner"} />
       <span className="shadow" />
     </div>
   );
