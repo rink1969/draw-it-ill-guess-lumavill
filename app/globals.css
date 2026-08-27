@@ -11,6 +11,7 @@
   --wood: #ba8751;
   --ink: #473a28;
   --shadow: rgba(93, 73, 35, 0.18);
+  --room-backdrop: url("/cozy-room-reference.png");
 }
 
 * {
@@ -51,7 +52,7 @@ button {
     radial-gradient(circle at 76% 18%, rgba(255, 255, 255, 0.62) 0 4.5%, transparent 4.7%),
     radial-gradient(circle at 72% 20%, #8fae5d 0 10%, transparent 10.4%),
     linear-gradient(90deg, transparent 0 36%, rgba(126, 161, 91, 0.22) 36% 100%),
-    url("/cozy-room-reference.png") center / cover;
+    var(--room-backdrop) center / cover;
   filter: saturate(0.88) brightness(1.04);
 }
 

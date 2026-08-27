@@ -15,5 +15,5 @@ declare global {
 export function asset(path: string): string {
   const base = (typeof window !== 'undefined' ? window.__DSH_BASE_PATH : '') || '';
   const clean = path.startsWith('/') ? path.slice(1) : path;
-  return base ? `${base}/${clean}` : `/${clean}`;
+  return base ? `/${base}/${clean}` : `/${clean}`;
 }
