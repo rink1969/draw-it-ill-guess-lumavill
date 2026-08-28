@@ -3,7 +3,7 @@
 import { GameWordEntry, GuessAttempt, getFallbackGuess, isCorrectGuess } from "./mockAgentService";
 import { StructuredDrawing } from "./drawingCodec";
 import { canonicalGuess, Locale, localizeGuess } from "./i18n";
-import { readConnection } from "./modelConnection";
+import { getActiveConnection } from "./modelConnection";
 import { buildVisionPrompt, runCustomVisionGuess } from "./modelGateway";
 
 type VisionGuessResponse = {
@@ -33,7 +33,7 @@ export async function requestHybridGuess({
   targetWord: GameWordEntry;
   locale: Locale;
 }): Promise<GuessAttempt> {
-  const connection = readConnection();
+  const connection = getActiveConnection();
   if (!connection) throw new Error("connection_missing");
 
   const controller = new AbortController();

@@ -141,6 +141,9 @@ button {
 .test-message, .privacy-note { margin: 0; font-size: 13px; font-weight: 750; }
 .test-message { margin-top: 12px; color: #5d793d; }
 .privacy-note { margin-top: 15px; color: #8a7b5e; text-align: center; }
+.managed-badge { margin-top: 20px; padding: 18px; border: 2px dashed #b7c78c; border-radius: 18px; background: #f4f8ec; }
+.managed-badge > p { margin: 0 0 6px; font-size: 14px; font-weight: 800; color: #52783b; }
+.managed-badge .managed-detail { font-size: 13px; font-weight: 700; color: #786b50; }
 .save-error { margin: 12px 0 0; color: #a3483f; font-size: 14px; font-weight: 900; text-align: center; }
 
 .progress-pills {

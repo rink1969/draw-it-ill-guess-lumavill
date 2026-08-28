@@ -5,7 +5,10 @@ import { DrawingStroke, StructuredDrawing, strokesToStructuredDrawing } from "./
 import { requestHybridGuess } from "./hybridGuessEngine";
 import { GameWordEntry, GuessAttempt, pickWord, wordBank } from "./mockAgentService";
 import { categoryName, dialoguePools, difficultyName, Locale, localizeGuess, wordName } from "./i18n";
-import { readConnection, saveConnection, validateConnection } from "./modelConnection";
+import { getActiveConnection, readConnection, saveConnection, validateConnection } from "./modelConnection";
+import { useWattHost } from "./useWattHost";
+import { readWattHost, type WattManagedAiHost } from "./wattHost";
+import { ManagedBadgeView } from "./ManagedBadgeView";
 import { saveMemory as saveMemoryEntry } from "./memoryStore";
 import { testCustomModelConnection } from "./modelGateway";
 import { asset } from "./basePath";
@@ -181,13 +184,14 @@ export default function GameDemo() {
   const [memorySaveKey, setMemorySaveKey] = useState("");
   const [solved, setSolved] = useState(false);
   const [modelCenterOpen, setModelCenterOpen] = useState(false);
-  const [modelConnected, setModelConnected] = useState(false);
+  const [modelConnected, setModelConnected] = useState(() => getActiveConnection() !== null);
   const [guessError, setGuessError] = useState("");
   const [guessNeedsReconnect, setGuessNeedsReconnect] = useState(false);
   const [musicOn, setMusicOn] = useState(true);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const [sessionStats, setSessionStats] = useState<SessionStats>({ games: 0, totalAttempts: 0, silverOre: 0, stone: 0 });
   const pools = dialoguePools[locale];
+  const wattHost = useWattHost();
 
   useEffect(() => {
     const saved = window.localStorage.getItem("lumavill-language");
@@ -220,8 +224,16 @@ export default function GameDemo() {
     else audio.pause();
   }
 
+  // In the WATT App (managed mode) the AI config is injected by the host, so we
+  // auto-connect without any manual setup. The lazy state above already accounts
+  // for an already-injected host; this effect only bridges the case where the
+  // host arrives after load via "watt:host-ready". Safe no-op off-host.
   useEffect(() => {
-    setModelConnected(readConnection() !== null);
+    const syncHost = () => {
+      if (readWattHost()) setModelConnected(true);
+    };
+    window.addEventListener("watt:host-ready", syncHost);
+    return () => window.removeEventListener("watt:host-ready", syncHost);
   }, []);
 
   function changeLocale(next: Locale) {
@@ -432,7 +444,7 @@ export default function GameDemo() {
     setSaveStatus("saving");
     setSaveError("");
     try {
-      const connection = readConnection();
+      const connection = getActiveConnection();
       const result = saveMemoryEntry({
         saveKey: memorySaveKey || `${Date.now()}-${Math.random()}`,
         title: copy.title,
@@ -534,6 +546,7 @@ export default function GameDemo() {
           onClose={() => setModelCenterOpen(false)}
           onConnected={resumeGameAfterReconnect}
           onConnectionChange={setModelConnected}
+          managedHost={wattHost}
         />
       )}
     </main>
@@ -603,10 +616,12 @@ function ModelCenter({
   onClose,
   onConnected,
   onConnectionChange,
+  managedHost,
 }: {
   onClose: () => void;
   onConnected: () => void;
   onConnectionChange: (connected: boolean) => void;
+  managedHost: WattManagedAiHost | null;
 }) {
   const locale = useLocale();
   const [testMessage, setTestMessage] = useState("");
@@ -664,7 +679,8 @@ function ModelCenter({
           <button className="close-button" type="button" onClick={onClose} aria-label="Close model center">×</button>
         </div>
 
-        <form className="custom-connection" onSubmit={saveCustomConnection}>
+        {!managedHost && (
+          <form className="custom-connection" onSubmit={saveCustomConnection}>
           <div className="custom-connection-title">
             <div><strong>{locale === "zh" ? "连接模型" : "Connect Model"}</strong><small>{locale === "zh" ? "填写兼容 OpenAI 格式的视觉模型服务" : "Enter an OpenAI-compatible vision service"}</small></div>
             <span className={customConnected ? "connection-badge ready" : "connection-badge"}>{customConnected ? (locale === "zh" ? "已连接" : "Connected") : (locale === "zh" ? "未连接" : "Not connected")}</span>
@@ -674,7 +690,8 @@ function ModelCenter({
           <label>API Key<input type="password" required={!customConnected} value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="off" placeholder={customConnected ? (locale === "zh" ? "已安全保存；留空保持原密钥" : "Saved securely; leave blank to keep it") : "sk-..."} /></label>
           <button className="primary-button" disabled={savingConnection || !serviceUrl.trim() || !customModel.trim() || (!apiKey.trim() && !customConnected)} type="submit">{savingConnection ? (locale === "zh" ? "正在连接..." : "Connecting...") : (locale === "zh" ? "保存" : "Save")}</button>
         </form>
-
+        )}
+        {managedHost && <ManagedBadgeView managedHost={managedHost} />}
         {testMessage && <p className="test-message" aria-live="polite">{testMessage}</p>}
         <p className="privacy-note">{locale === "zh" ? "API Key 会明文保存到浏览器 localStorage，仅本机读取。共享或离开此浏览器时请断开连接。" : "Your API Key is saved in plain text in the browser localStorage and is read only locally. Disconnect when sharing this browser or leaving the machine."}</p>
       </section>
