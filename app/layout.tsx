@@ -35,7 +35,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         {BASE_PATH
-          ? <script dangerouslySetInnerHTML={{ __html: "window.__DSH_BASE_PATH=" + JSON.stringify(BASE_PATH) + ";document.documentElement.style.setProperty('--room-backdrop', url(/" + BASE_PATH + "/cozy-room-reference.png));" }} />
+          ? <script dangerouslySetInnerHTML={{ __html: `window.__DSH_BASE_PATH=${JSON.stringify(BASE_PATH)};document.documentElement.style.setProperty('--room-backdrop', ${JSON.stringify('url(/' + BASE_PATH + '/cozy-room-reference.png)')});` }} />
           : null}
         {children}
       </body>
