@@ -106,7 +106,9 @@ export function buildVisionPrompt({
     structuredDrawing ? `ASCII grid:\n${structuredDrawing.asciiGrid ?? ""}` : "",
     structuredDrawing ? structuredDrawing.asciiGridNote ?? "" : "",
     "Use the overall silhouette and stroke direction. Do not overfit to a single mark.",
-    "Use user hints as clues, but still make only one concise guess. Do not repeat previous guesses. It is okay to be wrong.",
+    `Never guess any of these previous answers; always pick something else: ${prior.length ? prior.join(", ") : "none"}.`,
+    "If you are not quite sure, use a LOW confidence (0.1-0.4); do not fabricate a confident guess for something you cannot see.",
+    "Combine the user hints to narrow down to a single most likely answer, but still make only one concise guess. Do not repeat previous guesses. It is okay to be wrong.",
     locale === "zh" ? "Write the guess and reaction in Simplified Chinese only." : "Write the guess and reaction in English only.",
     "Return only JSON with this shape: {\"guess\":\"...\",\"confidence\":0.0,\"reaction\":\"...\"}.",
   ]

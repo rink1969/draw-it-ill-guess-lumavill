@@ -1,3 +1,5 @@
+import { canonicalGuess } from "./i18n";
+
 export type Difficulty = "easy" | "medium" | "tricky";
 export type Category = "Food" | "Animals" | "Nature" | "Objects" | "Places" | "Sports" | "Magic";
 
@@ -107,7 +109,9 @@ export function getFallbackGuess(
   userHints: string[] = [],
   excludeAnswer = false,
 ): string {
-  const previous = previousGuesses.map(normalizeGuess);
+  // Canonicalize to English so the repeat-guard matches the English candidate pool
+  // regardless of the display locale (a stored "汉堡" must filter out "Hamburger").
+  const previous = previousGuesses.map((g) => normalizeGuess(canonicalGuess(String(g ?? "").trim())));
   const normalizedHints = userHints.map(normalizeGuess).join(" ");
   const hintNamesAnswer = [word.word, ...word.aliases].some((alias) => normalizedHints.includes(normalizeGuess(alias)));
   if (hintNamesAnswer && !previous.includes(normalizeGuess(word.word))) return word.word;
@@ -115,32 +119,41 @@ export function getFallbackGuess(
   const sameCategoryWords = wordBank
     .filter((entry) => entry.category === word.category && entry.word !== word.word)
     .map((entry) => entry.word);
-  const neighboringConfusions = wordBank
-    .filter((entry) => entry.category !== word.category && entry.difficulty === word.difficulty)
-    .flatMap((entry) => entry.fallbackGuesses.slice(0, 2));
+  // Same-difficulty words in the same category feel closer (similar subject weight),
+  // so a miss reads as "getting warmer" instead of jumping to a random topic.
+  const warmWords = [...new Set(
+    sameCategoryWords
+      .filter((w) => difficultyOf(word, w) === word.difficulty)
+      .concat(sameCategoryWords),
+  )];
+  // The legacy fallback lists mix in off-topic words; keep only as an absolute
+  // last resort so wrong guesses stay on-category instead of landing on something wild.
+  const lastResort = word.fallbackGuesses;
 
-  const hintAlignment = hintMatchesTarget(word, normalizedHints) ? 0.22 : 0;
-  const hintBoost = userHints.length ? Math.min(0.68, userHints.length * 0.28 + hintAlignment) : 0;
-  const answerChance =
-    round === 1 ? 0.08 + hintBoost : round === 2 ? 0.2 + hintBoost : userHints.length ? 0.62 + hintBoost : 0.38;
-  const shouldTryAnswer = Math.random() < Math.min(0.96, answerChance);
+  // A strong, on-topic clue late in the round earns the fallback the right to name
+  // the target, so a model hiccup + good teamwork can still be solved.
+  const onTopicHint = hintMatchesTarget(word, normalizedHints);
+  const canNameAnswer = !excludeAnswer || (onTopicHint && round >= 3);
 
-  const candidates = shouldTryAnswer
-    ? [word.word, ...word.aliases, ...word.fallbackGuesses, ...sameCategoryWords]
-    : [...word.fallbackGuesses.slice(0, 2), ...sameCategoryWords, ...neighboringConfusions];
+  const pool = canNameAnswer
+    ? [word.word, ...word.aliases, ...warmWords, ...lastResort]
+    : [...warmWords, ...lastResort];
 
-  const fresh = (shouldTryAnswer ? unique(candidates) : shuffle(unique(candidates)))
+  const fresh = unique(pool)
     .filter((guess) => !previous.includes(normalizeGuess(guess)))
-    .filter((guess) => !excludeAnswer || !isCorrectGuess(guess, word))
+    .filter((guess) => canNameAnswer || !isCorrectGuess(guess, word))
     .filter((guess) => round >= 3 || normalizeGuess(guess) !== normalizeGuess(word.word));
 
   return (
     fresh[0] ??
-    word.fallbackGuesses.find(
-      (guess) => !previous.includes(normalizeGuess(guess)) && (!excludeAnswer || !isCorrectGuess(guess, word)),
+    lastResort.find(
+      (guess) => !previous.includes(normalizeGuess(guess)) && (canNameAnswer || !isCorrectGuess(guess, word)),
     ) ??
+    warmWords.find((guess) => !previous.includes(normalizeGuess(guess))) ??
     sameCategoryWords.find((guess) => !previous.includes(normalizeGuess(guess))) ??
-    word.word
+    (canNameAnswer
+      ? word.word
+      : (lastResort.find((guess) => !previous.includes(normalizeGuess(guess))) ?? lastResort[0]))
   );
 }
 
@@ -200,11 +213,6 @@ function unique(items: string[]) {
   return [...new Set(items.filter(Boolean))];
 }
 
-function shuffle<T>(items: T[]) {
-  const next = [...items];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
-  }
-  return next;
+function difficultyOf(word: GameWordEntry, otherWord: string): Difficulty | undefined {
+  return wordBank.find((entry) => entry.word === otherWord)?.difficulty;
 }
